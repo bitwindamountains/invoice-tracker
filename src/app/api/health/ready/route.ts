@@ -1,0 +1,2 @@
+import { getDatabase } from "@/lib/db";import{getEnvironment}from"@/lib/env";import{logEvent}from"@/lib/logger";
+export async function GET(){const started=Date.now();try{await getDatabase().$queryRaw`SELECT 1`;return Response.json({status:"ready",version:getEnvironment().DEPLOYMENT_VERSION},{headers:{"Cache-Control":"no-store"}});}catch{logEvent("readiness_check_failed",{durationMs:Date.now()-started});return Response.json({status:"unavailable"},{status:503,headers:{"Cache-Control":"no-store","Retry-After":"10"}});}}

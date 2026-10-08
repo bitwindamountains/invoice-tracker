@@ -1,0 +1,4 @@
+import { generateInvoicePdf } from "@/services/invoice-pdf";
+import { getPublicInvoice } from "@/services/invoice-issuing";
+import { InvoiceNotFound } from "@/services/invoices";
+export async function GET(_request: Request, context: { params: Promise<{ token: string }> }) { try { const invoice = await getPublicInvoice((await context.params).token, false); const pdf = await generateInvoicePdf(invoice.snapshot); const filename = invoice.snapshot.invoiceNumber.replace(/[^A-Za-z0-9_.-]/g, "-"); return new Response(Buffer.from(pdf), { headers: { "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${filename}.pdf"`, "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "X-Robots-Tag": "noindex, nofollow" } }); } catch (error) { if (error instanceof InvoiceNotFound) return Response.json({ error: "Not found" }, { status: 404 }); return Response.json({ error: "PDF could not be generated." }, { status: 500 }); } }

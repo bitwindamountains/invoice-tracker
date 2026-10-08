@@ -1,0 +1,26 @@
+node_modules/
+.next/
+.env
+.env.*
+!.env.example
+.local/
+src/generated/
+coverage/
+*.tsbuildinfo
+test-results/
+playwright-report/
+backups/
+
+# Keep secrets and local files out of the public repo
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+.claude/settings.local.json
+*.log
+.DS_Store
+Thumbs.db
+tmp/
+output/

@@ -1,0 +1,3 @@
+export type InvoiceLineForm = { description: string; unit: string; quantity: string; unitPrice: string; discountType: "NONE" | "PERCENT" | "FIXED"; discountValue: string; taxRate: string };
+export type InvoiceFormValues = { clientId: string; invoiceNumber: string; issueDate: string; dueDate: string; currency: string; notes: string; terms: string; paymentInstructions: string; items: InvoiceLineForm[]; version?: number };
+export type InvoiceEditorOption = { id: string; name: string; company?: string | null; email?: string; description?: string | null; unit?: string; price?: string; taxable?: boolean };
