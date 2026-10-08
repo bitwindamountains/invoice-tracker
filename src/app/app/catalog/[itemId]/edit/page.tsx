@@ -1,0 +1,7 @@
+import { notFound, redirect } from "next/navigation";
+import { PrivateHeader } from "@/components/private-header";
+import { CatalogForm } from "@/features/catalog/catalog-form";
+import { requireSession } from "@/lib/session";
+import { CatalogAccessDenied, CatalogItemNotFound, getCatalogItem } from "@/services/catalog";
+import { ensurePersonalWorkspace } from "@/services/workspace";
+export default async function EditCatalogItemPage({ params }: { params: Promise<{ itemId: string }> }) { const { user } = await requireSession(); const workspace = await ensurePersonalWorkspace(user); if (!workspace.onboardingCompletedAt) redirect("/onboarding"); let item; try { item = await getCatalogItem(user.id, workspace.id, (await params).itemId); } catch (error) { if (error instanceof CatalogItemNotFound || error instanceof CatalogAccessDenied) notFound(); throw error; } return <div className="workspace"><PrivateHeader businessName={workspace.name}/><main id="main" className="client-editor-main"><span className="eyebrow">EDIT CATALOG ITEM</span><h1>Edit {item.name}</h1><p className="form-description">Update the defaults used when this item is selected.</p><CatalogForm itemId={item.id} currency={workspace.defaultCurrency} initial={{ name: item.name, description: item.description ?? "", price: item.price.toString(), unit: item.unit, taxable: item.taxable, version: item.version }}/></main></div>; }

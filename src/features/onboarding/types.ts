@@ -1,0 +1,33 @@
+export type PaymentInstructionForm = {
+  name: string;
+  accountName: string;
+  accountReference: string;
+  notes: string;
+  enabled: boolean;
+};
+export type BusinessSetupForm = {
+  businessName: string;
+  legalName: string;
+  ownerName: string;
+  businessEmail: string;
+  phone: string;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  provinceState: string;
+  postalCode: string;
+  country: string;
+  defaultCurrency: string;
+  timezone: string;
+  website: string;
+  brandColor: string;
+  invoiceFooter: string;
+  defaultPaymentTermsDays: number;
+  defaultNotes: string;
+  defaultTaxLabel: string;
+  defaultTaxRate: string;
+  invoicePrefix: string;
+  startingInvoiceNumber: number;
+  paymentInstructions: PaymentInstructionForm[];
+  hasLogo: boolean;
+};
