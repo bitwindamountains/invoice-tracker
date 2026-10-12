@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, ViewTransition } from "react";
 import { ArrowUpRight, FilePlus2, Menu, Plus, ReceiptText, Search, UserPlus, Wallet, X } from "lucide-react";
+import { AmbientBackground } from "@/components/ambient-background";
 import { SignOut } from "@/components/sign-out";
 import { CommandPalette } from "./command-palette";
 import { isActive, mobileNav, primaryNav, secondaryNav, type NavItem } from "./nav";
@@ -116,6 +117,7 @@ export function AppShell({ businessName, userName, counts, children }: { busines
         <div className="sidebar-foot"><SignOut /></div>
       </aside>
       <div className="shell-main">
+        <AmbientBackground variant="quiet" />
         <header className="topbar">
           <Link className="topbar-brand" href="/app" aria-label="Invoice Tracker dashboard">
             <span className="brand-mark"><ArrowUpRight size={18} strokeWidth={2.5} /></span>
