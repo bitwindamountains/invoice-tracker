@@ -50,8 +50,17 @@ test("public screens are accessible and fit desktop and mobile", async ({
   await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
   await page.setViewportSize({ width: 390, height: 844 });
   await page.context().setOffline(true);
-  await page.goto("/app");
-  await expect(page.getByRole("heading", { name: "You're offline." })).toBeVisible();
+  // Playwright does not always apply offline emulation to an already running service worker, which then fetches
+  // from the live server. Re-apply it before each retry until the worker serves the cached fallback.
+  let attempt = 0;
+  await expect(async () => {
+    if (attempt++) {
+      await page.context().setOffline(false);
+      await page.context().setOffline(true);
+    }
+    await page.goto("/app");
+    await expect(page.getByRole("heading", { name: "You're offline." })).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
   await page.screenshot({ path: "test-results/offline-mobile.png", fullPage: true });
   await page.context().setOffline(false);
   expect(errors).toEqual([]);
@@ -60,7 +69,7 @@ test("public screens are accessible and fit desktop and mobile", async ({
 test("register, verify, onboard, edit settings and logout through the browser", async ({
   page,
 }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(180_000); // Each route compiles on first visit in the dev server CI runs against.
   const email = `browser-${randomUUID()}@example.test`;
   const password = `Browser-${randomUUID()}`;
   const db = getDatabase();
@@ -157,7 +166,8 @@ test("register, verify, onboard, edit settings and logout through the browser", 
       ).violations,
     ).toEqual([]);
     await page.screenshot({ path: "test-results/clients-mobile.png", fullPage: true });
-    await page.getByRole("link", { name: "Catalog", exact: true }).click();
+    await page.getByRole("button", { name: "More" }).click();
+    await page.getByRole("dialog", { name: "More navigation" }).getByRole("link", { name: "Catalog", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Create your first catalog item" })).toBeVisible();
     await page.getByRole("link", { name: "Create item" }).click();
     await page.getByLabel("Name").fill("Website Development");
@@ -183,7 +193,7 @@ test("register, verify, onboard, edit settings and logout through the browser", 
     await page.getByRole("link", { name: "Invoices", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Create your first invoice" })).toBeVisible();
     await page.getByRole("link", { name: "Create invoice" }).click();
-    await page.getByLabel("Client").selectOption({ label: "Brightside Labs — Brightside Creative Labs" });
+    await page.getByRole("combobox", { name: "Client", exact: true }).selectOption({ label: "Brightside Labs — Brightside Creative Labs" });
     await page.getByLabel("Line 1 saved item").selectOption({ label: "Website Design & Development" });
     await page.getByLabel("Line 1 discount type").selectOption("PERCENT");
     await page.getByLabel("Line 1 discount value").fill("10");
@@ -219,7 +229,7 @@ test("register, verify, onboard, edit settings and logout through the browser", 
     await page.getByRole("button", { name: "Confirm payment" }).click();
     await expect(page.getByText("Your payment inbox is clear.")).toBeVisible();
     await page.goto(ownerInvoiceUrl);
-    await expect(page.getByText("PAID", { exact: true })).toBeVisible();
+    await expect(page.locator(".detail-status").getByText("Paid", { exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Payment history" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Download receipt" })).toBeVisible();
     await page.goto("/app");
@@ -266,7 +276,8 @@ test("register, verify, onboard, edit settings and logout through the browser", 
       fullPage: true,
     });
     await page.goto("/app");
-    await page.getByRole("button", { name: "Sign out" }).click();
+    await page.getByRole("button", { name: "More" }).click();
+    await page.getByRole("dialog", { name: "More navigation" }).getByRole("button", { name: "Sign out" }).click();
     await expect(page).toHaveURL(/\/login$/);
     await page.goto("/app");
     await expect(page).toHaveURL(/\/login$/);

@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { PrivateHeader } from "@/components/private-header";
 import { ConfirmationActions } from "@/features/payments/confirmation-actions";
 import { requireSession } from "@/lib/session";
 import { listConfirmations } from "@/services/payments";
@@ -28,7 +27,6 @@ export default async function PaymentsPage({
   const items = await listConfirmations(user.id, workspace.id, { status });
   return (
     <div className="workspace">
-      <PrivateHeader businessName={workspace.name} />
       <main id="main" className="clients-main">
         <div className="page-title-row">
           <div>
@@ -37,10 +35,10 @@ export default async function PaymentsPage({
             <p>Submissions do not affect balances until you confirm them.</p>
           </div>
         </div>
-        <nav className="inbox-tabs" aria-label="Payment confirmation status">
-          <Link href="/app/payments">Pending</Link>
-          <Link href="/app/payments?status=CONFIRMED">Confirmed</Link>
-          <Link href="/app/payments?status=REJECTED">Rejected</Link>
+        <nav className="segmented" aria-label="Payment confirmation status">
+          {[["PENDING", "Pending", "/app/payments"], ["CONFIRMED", "Confirmed", "/app/payments?status=CONFIRMED"], ["REJECTED", "Rejected", "/app/payments?status=REJECTED"]].map(([value, label, target]) => (
+            <Link key={value} href={target} aria-current={status === value ? "page" : undefined} className={status === value ? "is-active" : undefined}>{label}</Link>
+          ))}
         </nav>
         {items.length === 0 ? (
           <section className="empty-state">
@@ -48,7 +46,7 @@ export default async function PaymentsPage({
             <p>No {status.toLowerCase()} confirmations.</p>
           </section>
         ) : (
-          <section className="confirmation-list">
+          <section className="confirmation-list stagger">
             {items.map((item) => (
               <article className="confirmation-card" key={item.id}>
                 <div>

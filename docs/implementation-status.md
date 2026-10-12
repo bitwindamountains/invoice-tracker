@@ -15,6 +15,8 @@
 - Phase 11: standalone web app manifest, complete icon set, browser install prompt, responsive offline page and a conservative service worker that excludes financial and capability-bearing responses from caching.
 - Phase 12 local hardening: authorization invariants, persisted public submission limits, expanded CSP/cross-origin headers, centralized redacted error reporting, health probes, backup verification tooling, performance smoke testing, CI enforcement and an operations runbook.
 
+- Interface pass: shared app shell (sidebar, sticky top bar, mobile tab bar with a More sheet), ⌘K command palette searching invoices, clients and pages, quick-create menu, toast feedback, due-aware status chips, a Get Paid queue with tabs and inline follow-ups, invoice payment-progress strip and timeline rail, invoice duplication, a workspace Activity feed, a client-facing pay panel on public invoices, and route view transitions. All motion has a reduced-motion path.
+
 ## Database and API changes
 
 Ten migrations are applied locally. The schema now includes expense categories and exact-decimal expense records alongside the existing identity, workspace, business, client, catalog, invoice, delivery, payment and reminder records.

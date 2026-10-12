@@ -1,4 +1,5 @@
 "use client";
+import { toast } from "@/components/toaster";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
@@ -20,7 +21,7 @@ export function ClientForm({ initial, clientId }: { initial: ClientFormValues; c
       const response = await fetch(editing ? `/api/clients/${clientId}` : "/api/clients", { method: editing ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
       const result = await response.json() as { id?: string; error?: string; fields?: Record<string, string[] | undefined> };
       if (!response.ok || !result.id) { setError(result.error ?? "Client could not be saved."); setFieldErrors(result.fields ?? {}); return; }
-      router.replace(`/app/clients/${result.id}`); router.refresh();
+      toast(editing ? "Client updated." : "Client added."); router.replace(`/app/clients/${result.id}`); router.refresh();
     } catch { setError("We couldn’t connect. Your information is still here; try again."); }
     finally { setPending(false); }
   }
