@@ -1,5 +1,6 @@
 import { Brand } from "@/components/brand";
 import { Check } from "lucide-react";
+import { AmbientBackground } from "@/components/ambient-background";
 export default function AuthLayout({
   children,
 }: {
@@ -8,9 +9,9 @@ export default function AuthLayout({
   return (
     <div className="auth-layout">
       <aside className="auth-aside">
+        <AmbientBackground variant="vivid" />
         <Brand />
         <div>
-          <span className="eyebrow">FOLLOW THROUGH TO PAID</span>
           <h2>
             You do the work.
             <br />

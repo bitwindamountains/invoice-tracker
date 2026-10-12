@@ -16,12 +16,12 @@
 }
 
 .reminder-rules { display: grid; gap: 1rem; margin: 1.5rem 0 2rem; }
-.reminder-rule { background: var(--surface, #fff); border: 1px solid var(--border, #d9dfda); border-radius: 16px; display: grid; gap: .8rem; padding: 1.15rem; }
+.reminder-rule { background: var(--surface, #fff); border: 1px solid var(--border, #e3ddd0); border-radius: 16px; display: grid; gap: .8rem; padding: 1.15rem; }
 .reminder-rule label, .reminder-compose label { display: grid; gap: .35rem; font-weight: 650; }
-.reminder-rule input, .reminder-rule select, .reminder-rule textarea, .reminder-compose input, .reminder-compose select, .reminder-compose textarea { border: 1px solid #bdc8c0; border-radius: 8px; font: inherit; padding: .7rem; width: 100%; }
+.reminder-rule input, .reminder-rule select, .reminder-rule textarea, .reminder-compose input, .reminder-compose select, .reminder-compose textarea { border: 1px solid #cfc6b4; border-radius: 8px; font: inherit; padding: .7rem; width: 100%; }
 .reminder-rule .checkbox-row { align-items: center; display: flex; gap: .6rem; }
 .reminder-rule .checkbox-row input { width: auto; }
-.reminder-compose { background: #f5f8f5; border: 1px solid #d9dfda; border-radius: 12px; display: grid; gap: .8rem; margin-top: .7rem; min-width: min(32rem, 80vw); padding: 1rem; }
+.reminder-compose { background: #f8f5ee; border: 1px solid #e3ddd0; border-radius: 12px; display: grid; gap: .8rem; margin-top: .7rem; min-width: min(32rem, 80vw); padding: 1rem; }
 * {
   box-sizing: border-box;
 }
@@ -202,7 +202,7 @@ h3 {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: 0 18px 55px #263c2b09;
+  box-shadow: 0 18px 55px #2a211409;
   padding: 28px;
 }
 .preview-top {
@@ -556,9 +556,9 @@ input::placeholder {
 .client-table .row-link { color: var(--brand); font-weight: 700; }
 .status-badge { display: inline-flex !important; width: max-content; padding: 3px 8px; border-radius: 999px; font-size: 11px !important; font-weight: 700; }
 .status-badge.active { color: var(--success); background: var(--brand-light); }
-.status-badge.archived { color: var(--secondary); background: #eceeeb; }
+.status-badge.archived { color: var(--secondary); background: #ece8df; }
 .client-cards { display: none; }
-.empty-state { text-align: center; border: 1px dashed #b8c6ba; border-radius: var(--radius); padding: 58px 24px; }
+.empty-state { text-align: center; border: 1px dashed #cfc6b4; border-radius: var(--radius); padding: 58px 24px; }
 .empty-state .panel-icon { margin: 0 auto 22px; }
 .empty-state h2 { font-size: 24px; margin-bottom: 8px; }
 .empty-state p { max-width: 440px; margin: 0 auto 22px; color: var(--secondary); }
@@ -606,7 +606,7 @@ input::placeholder {
 .line-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; }
 .remove-line { display: flex; align-items: center; gap: 6px; border: 0; background: none; color: var(--danger); margin-top: 14px; font-size: 12px; }
 .add-line { margin-top: 3px; }
-.invoice-paper { margin-top: 30px; background: white; border: 1px solid var(--border); box-shadow: 0 18px 55px #263c2b09; padding: 45px; border-radius: var(--radius); }
+.invoice-paper { margin-top: 30px; background: white; border: 1px solid var(--border); box-shadow: 0 18px 55px #2a211409; padding: 45px; border-radius: var(--radius); }
 .invoice-paper > header { display: flex; justify-content: space-between; gap: 30px; padding-bottom: 30px; border-bottom: 2px solid var(--text); }
 .invoice-paper > header h2 { margin: 8px 0 0; }
 .invoice-paper > header > div:last-child { display: grid; text-align: right; }
@@ -732,7 +732,7 @@ input::placeholder {
 }
 .setup-progress li.done > span {
   background: var(--brand-light);
-  border-color: #c6d7c9;
+  border-color: #ddd3bf;
 }
 .setup-form {
   min-width: 0;
@@ -926,7 +926,7 @@ input::placeholder {
   gap: 20px;
   margin-top: 24px;
   padding: 25px 30px;
-  border: 1px dashed #b8c6ba;
+  border: 1px dashed #cfc6b4;
   border-radius: var(--radius);
 }
 .next-phase-card h2 {
@@ -1224,7 +1224,7 @@ input::placeholder {
 
 .report-filters { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; margin: 26px 0 20px; }
 .report-filters label { display: grid; gap: 5px; color: var(--secondary); font-size: 13px; flex: 1 1 150px; }
-.report-filters input, .report-filters select, .category-form input, .expense-dialog input, .expense-dialog select, .expense-dialog textarea { width: 100%; border: 1px solid #bdc8c0; border-radius: 8px; padding: .7rem; font: inherit; }
+.report-filters input, .report-filters select, .category-form input, .expense-dialog input, .expense-dialog select, .expense-dialog textarea { width: 100%; border: 1px solid #cfc6b4; border-radius: 8px; padding: .7rem; font: inherit; }
 .expense-layout, .report-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); gap: 18px; margin-top: 18px; }
 .expense-list article { display: flex; justify-content: space-between; gap: 16px; border-top: 1px solid var(--border); padding: 15px 0; }
 .expense-list article span, .expense-list article small { display: block; color: var(--secondary); margin-top: 3px; }
