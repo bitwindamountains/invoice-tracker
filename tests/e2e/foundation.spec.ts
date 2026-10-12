@@ -50,8 +50,12 @@ test("public screens are accessible and fit desktop and mobile", async ({
   await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
   await page.setViewportSize({ width: 390, height: 844 });
   await page.context().setOffline(true);
-  await page.goto("/app");
-  await expect(page.getByRole("heading", { name: "You're offline." })).toBeVisible();
+  // Offline emulation reaches a freshly started service worker asynchronously, so its first fetch can still hit
+  // the network. Retry the navigation until the worker is offline too and serves the cached fallback.
+  await expect(async () => {
+    await page.goto("/app");
+    await expect(page.getByRole("heading", { name: "You're offline." })).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
   await page.screenshot({ path: "test-results/offline-mobile.png", fullPage: true });
   await page.context().setOffline(false);
   expect(errors).toEqual([]);
