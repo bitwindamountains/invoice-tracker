@@ -4,6 +4,7 @@ import { Brand } from "@/components/brand";
 import { getPublicInvoice } from "@/services/invoice-issuing";
 import { InvoiceNotFound } from "@/services/invoices";
 import { PublicPaymentActions } from "@/features/payments/public-payment-actions";
+import { InvoiceStatus } from "@/components/ui/status-chip";
 export const dynamic = "force-dynamic";
 function money(value: string, currency: string) {
   return new Intl.NumberFormat("en", {
@@ -36,28 +37,34 @@ export default async function PublicInvoicePage({
         </span>
       </header>
       <main id="main" className="public-invoice-main">
-        <div className="page-title-row">
-          <div>
-            <span className="status-badge active">
-              {invoice.status.replaceAll("_", " ")}
-            </span>
-            <h1>{snapshot.invoiceNumber}</h1>
-            <p>
-              From {snapshot.business.name} · Due {snapshot.dueDate}
-            </p>
+        <div className="public-layout">
+        <aside className="pay-panel" aria-label="Payment summary">
+          <div className="pay-panel-head">
+            <InvoiceStatus status={invoice.status} dueDate={new Date(`${snapshot.dueDate}T00:00:00Z`)} />
+            <span>{snapshot.invoiceNumber}</span>
           </div>
-          <a
-            className="button secondary"
-            href={`/api/public/invoices/${token}/pdf`}
-          >
+          <h1 className="sr-only">{snapshot.invoiceNumber}</h1>
+          <p className="pay-from">From {snapshot.business.name} · Due {snapshot.dueDate}</p>
+          <span className="pay-label">{invoice.status === "PAID" ? "Paid in full" : "Balance due"}</span>
+          <strong className="pay-amount money">{money(invoice.balanceDue.toString(), snapshot.currency)}</strong>
+          {invoice.status === "PARTIALLY_PAID" && <p className="pay-note">of {money(snapshot.total, snapshot.currency)} total · partial payment received</p>}
+          {snapshot.paymentInstructions && invoice.status !== "PAID" && (
+            <div className="pay-instructions">
+              <strong>How to pay</strong>
+              <p className="preline">{snapshot.paymentInstructions}</p>
+            </div>
+          )}
+          <a className="button secondary full" href={`/api/public/invoices/${token}/pdf`}>
             <Download size={17} />
             Download PDF
           </a>
-        </div>
+          {invoice.status !== "PAID" && (
+            <PublicPaymentActions token={token} balance={invoice.balanceDue.toString()} currency={snapshot.currency} />
+          )}
+        </aside>
         <article className="invoice-paper">
           <header>
             <div>
-              <span className="eyebrow">INVOICE</span>
               <h2>{snapshot.business.name}</h2>
               <span>{snapshot.business.address}</span>
             </div>
@@ -69,7 +76,7 @@ export default async function PublicInvoicePage({
           </header>
           <section className="invoice-parties">
             <div>
-              <small>BILL TO</small>
+              <small>Bill to</small>
               <strong>{snapshot.client.name}</strong>
               {snapshot.client.company && (
                 <span>{snapshot.client.company}</span>
@@ -80,7 +87,7 @@ export default async function PublicInvoicePage({
               )}
             </div>
             <div>
-              <small>BALANCE DUE</small>
+              <small>Balance due</small>
               <strong>
                 {money(invoice.balanceDue.toString(), snapshot.currency)}
               </strong>
@@ -138,13 +145,7 @@ export default async function PublicInvoicePage({
             </footer>
           )}
         </article>
-        {invoice.status !== "PAID" && (
-          <PublicPaymentActions
-            token={token}
-            balance={invoice.balanceDue.toString()}
-            currency={snapshot.currency}
-          />
-        )}
+        </div>
         <p className="public-trust">
           This read-only page records that the secure link was opened. It does
           not identify who opened it.

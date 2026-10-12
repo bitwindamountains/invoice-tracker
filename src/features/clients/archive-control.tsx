@@ -1,4 +1,5 @@
 "use client";
+import { toast } from "@/components/toaster";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Archive, RotateCcw } from "lucide-react";
@@ -14,7 +15,7 @@ export function ArchiveControl({ clientId, name, version, archived }: { clientId
       const response = await fetch(`/api/clients/${clientId}/archive`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ archived: !archived, version }) });
       const result = await response.json() as { error?: string };
       if (!response.ok) { setError(result.error ?? "Client status could not be changed."); return; }
-      setConfirming(false); router.refresh();
+      setConfirming(false); toast(archived ? "Client restored." : "Client archived."); router.refresh();
     } catch { setError("We couldn’t connect. Try again."); }
     finally { setPending(false); }
   }

@@ -1,4 +1,5 @@
 "use client";
+import { toast } from "@/components/toaster";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 export function ConfirmationActions({ id }: { id: string }) {
@@ -23,6 +24,7 @@ export function ConfirmationActions({ id }: { id: string }) {
       setPending(false);
       return;
     }
+    toast(action === "confirm" ? "Payment confirmed." : "Confirmation rejected.");
     router.refresh();
   }
   return (

@@ -1,12 +1,14 @@
 import Link from "next/link";
-import {
-  ArrowRight,
-  Check,
-  FileText,
-  MessageSquare,
-  Wallet,
-} from "lucide-react";
+import { ArrowRight, CalendarClock, CircleCheck, Eye, Send, Wallet } from "lucide-react";
 import { Brand } from "@/components/brand";
+
+const story = [
+  { icon: Send, label: "Invoice sent", detail: "Mon 9:12 AM" },
+  { icon: Eye, label: "Opened by client", detail: "Mon 2:40 PM" },
+  { icon: CalendarClock, label: "Promised for Friday", detail: "Reminders paused" },
+  { icon: Wallet, label: "₱22,500 received", detail: "Partial payment" },
+  { icon: CircleCheck, label: "Paid in full", detail: "Fri 10:05 AM" },
+];
 
 export default function Home() {
   return (
@@ -19,72 +21,49 @@ export default function Home() {
       </header>
       <main id="main" className="landing-main">
         <div className="hero-copy">
-          <span className="eyebrow">
-            <span className="tiny-dot" /> LESS CHASING. MORE CLARITY.
-          </span>
           <h1>
             Good work deserves
             <br />
             <span>a paid invoice.</span>
           </h1>
-          <p>
-            A calmer way to follow through. Bring your invoices, client
-            commitments, and payment conversations into one focused workspace.
-          </p>
-          <Link className="button primary" href="/register">
+          <p>A calmer way to follow through. Bring your invoices, client commitments, and payment conversations into one focused workspace.</p>
+          <Link className="button primary hero-cta" href="/register">
             Create your workspace <ArrowRight size={18} />
           </Link>
-          <span className="hero-note">
-            Early development preview · Account setup available
-          </span>
+          <span className="hero-note">Early development preview · Account setup available</span>
         </div>
-        <section
-          className="preview"
-          aria-label="Illustration of the planned collection workflow"
-        >
-          <div className="preview-top">
-            <span>
-              <span className="tiny-dot" /> YOUR COLLECTION WORKSPACE
+        <section className="preview story-card" aria-label="Illustration of the planned collection workflow">
+          <div className="story-head">
+            <div>
+              <strong>INV-1042</strong>
+              <span>Harbor &amp; Pine · Brand identity</span>
+            </div>
+            <span className="story-status" aria-hidden>
+              <span className="chip story-chip s1">Sent</span>
+              <span className="chip chip-info story-chip s2">Viewed</span>
+              <span className="chip chip-info story-chip s3">Promised</span>
+              <span className="chip chip-success story-chip s4">Paid</span>
             </span>
-            <span className="badge">Preview</span>
           </div>
-          <h2>From sent to settled.</h2>
-          <p>Know what happened. Know what comes next.</p>
-          <div className="journey">
-            <div>
-              <span className="journey-icon">
-                <FileText size={21} />
-              </span>
-              <section>
-                <h3>Send with confidence</h3>
-                <p>A clear invoice. Everything in one place.</p>
-              </section>
-              <Check size={18} />
-            </div>
-            <div>
-              <span className="journey-icon">
-                <MessageSquare size={21} />
-              </span>
-              <section>
-                <h3>Follow up thoughtfully</h3>
-                <p>Remember promises, without the sticky notes.</p>
-              </section>
-              <Check size={18} />
-            </div>
-            <div>
-              <span className="journey-icon">
-                <Wallet size={21} />
-              </span>
-              <section>
-                <h3>See every payment</h3>
-                <p>Partial payments. Full visibility.</p>
-              </section>
-              <Check size={18} />
-            </div>
+          <div className="story-amount">
+            <span>Balance due</span>
+            <strong className="story-figure" aria-hidden>
+              <span className="f1">₱45,000.00</span>
+              <span className="f2">₱22,500.00</span>
+              <span className="f3">₱0.00</span>
+            </strong>
+            <div className="story-bar"><span /></div>
           </div>
-          <div className="preview-footer">
-            Built around the path to payment <ArrowUp />
-          </div>
+          <ol className="story-timeline">
+            {story.map(({ icon: Icon, label, detail }, index) => (
+              <li key={label} style={{ "--step": index } as React.CSSProperties}>
+                <span className="tl-icon"><Icon size={14} aria-hidden /></span>
+                <strong>{label}</strong>
+                <small>{detail}</small>
+              </li>
+            ))}
+          </ol>
+          <p className="story-caption">Illustrative example. From sent to settled, with every step recorded.</p>
         </section>
       </main>
       <footer className="site-footer">
@@ -93,7 +72,4 @@ export default function Home() {
       </footer>
     </div>
   );
-}
-function ArrowUp() {
-  return <ArrowRight size={18} />;
 }
