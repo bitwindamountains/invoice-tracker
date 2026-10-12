@@ -174,11 +174,30 @@ export async function getPaymentDashboard(
   }
   return {
     asOf: today.toISOString().slice(0, 10),
+    counts: {
+      open: openInvoices.length,
+      overdue: openInvoices.filter((invoice) => invoice.dueDate < today).length,
+      dueThisWeek: openInvoices.filter((invoice) => invoice.dueDate >= today && invoice.dueDate <= weekEnd).length,
+    },
     outstanding: serialize(outstanding),
     overdue: serialize(overdue),
     dueThisWeek: serialize(dueThisWeek),
     paidThisMonth: serialize(paid),
     pendingConfirmations: confirmations,
+    open: openInvoices.map((invoice) => ({
+      id: invoice.id,
+      invoiceNumber: invoice.invoiceNumber,
+      clientName: invoice.clientName,
+      currency: invoice.currency,
+      status: invoice.status,
+      total: invoice.total.toString(),
+      balanceDue: invoice.balanceDue.toString(),
+      dueDate: invoice.dueDate.toISOString().slice(0, 10),
+      daysFromDue: daysBetween(invoice.dueDate, today),
+      pendingConfirmations: invoice._count.paymentConfirmations,
+      promisedFor: invoice.paymentPromises[0]?.promisedFor.toISOString().slice(0, 10) ?? null,
+      promiseActive: Boolean(invoice.paymentPromises[0] && invoice.paymentPromises[0].promisedFor >= today),
+    })),
     attention,
     promises,
     recentActivity: recentEvents.map((event) => ({
@@ -249,5 +268,61 @@ export async function getClientPaymentMetrics(
     averageDaysEarlyLate: average(
       paid.map((invoice) => daysBetween(invoice.paidAt!, invoice.dueDate)),
     ),
+  };
+}
+
+/** Lightweight counts for navigation badges: overdue open invoices and confirmations awaiting review. */
+export async function getNavigationCounts(userId: string, workspaceId: string, now = new Date()) {
+  const db = getDatabase();
+  const workspace = await db.workspace.findFirst({
+    where: { id: workspaceId, members: { some: { userId } } },
+    select: { timezone: true },
+  });
+  if (!workspace) throw new PaymentAccessDenied();
+  const today = dayInTimezone(now, workspace.timezone);
+  const [overdue, inbox] = await db.$transaction([
+    db.invoice.count({
+      where: {
+        workspaceId,
+        status: { in: ["SENT", "PARTIALLY_PAID"] },
+        balanceDue: { gt: 0 },
+        dueDate: { lt: today },
+        paymentPromises: { none: { promisedFor: { gte: today } } },
+      },
+    }),
+    db.paymentConfirmation.count({ where: { workspaceId, status: "PENDING" } }),
+  ]);
+  return { attention: overdue + inbox, inbox };
+}
+
+const activityPageSize = 40;
+/** Workspace-wide invoice event feed, newest first, for the Activity page. */
+export async function getWorkspaceActivity(userId: string, workspaceId: string, rawPage: unknown, rawType?: unknown) {
+  const db = getDatabase();
+  if (!(await db.workspaceMember.count({ where: { workspaceId, userId } }))) throw new PaymentAccessDenied();
+  const page = Math.min(500, Math.max(1, Number.parseInt(String(rawPage ?? "1"), 10) || 1));
+  const groups: Record<string, string[]> = {
+    payments: ["PAYMENT_RECORDED", "PAYMENT_COMPLETED", "PAYMENT_CONFIRMATION_SUBMITTED", "PAYMENT_CONFIRMATION_REJECTED", "PAYMENT_PROMISED"],
+    delivery: ["INVOICE_ISSUED", "EMAIL_SENT", "EMAIL_FAILED", "REMINDER_SENT", "REMINDER_FAILED"],
+    views: ["PUBLIC_LINK_OPENED"],
+  };
+  const type = typeof rawType === "string" && rawType in groups ? rawType : "all";
+  const where: Prisma.InvoiceEventWhereInput = { workspaceId, ...(type !== "all" ? { type: { in: groups[type] } } : {}) };
+  const [events, total] = await db.$transaction([
+    db.invoiceEvent.findMany({
+      where,
+      include: { invoice: { select: { invoiceNumber: true, clientName: true } } },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      skip: (page - 1) * activityPageSize,
+      take: activityPageSize,
+    }),
+    db.invoiceEvent.count({ where }),
+  ]);
+  return {
+    type,
+    page,
+    pages: Math.max(1, Math.ceil(total / activityPageSize)),
+    total,
+    events: events.map((event) => ({ id: event.id, type: event.type, createdAt: event.createdAt, invoiceId: event.invoiceId, invoiceNumber: event.invoice.invoiceNumber, clientName: event.invoice.clientName })),
   };
 }

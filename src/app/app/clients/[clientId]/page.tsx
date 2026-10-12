@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Building2, FileText, Mail, MapPin, Pencil, Phone } from "lucide-react";
-import { PrivateHeader } from "@/components/private-header";
 import { ArchiveControl } from "@/features/clients/archive-control";
 import { requireSession } from "@/lib/session";
 import {
@@ -40,7 +39,6 @@ export default async function ClientPage({
   const amounts = (values: Record<string, string>) => Object.entries(values).map(([currency, value]) => new Intl.NumberFormat("en", { style: "currency", currency }).format(Number(value))).join(" · ") || "—";
   return (
     <div className="workspace">
-      <PrivateHeader businessName={workspace.name} />
       <main id="main" className="client-detail-main">
         <Link className="back-link" href="/app/clients">
           ← All clients
