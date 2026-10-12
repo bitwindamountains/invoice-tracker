@@ -50,9 +50,14 @@ test("public screens are accessible and fit desktop and mobile", async ({
   await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
   await page.setViewportSize({ width: 390, height: 844 });
   await page.context().setOffline(true);
-  // Offline emulation reaches a freshly started service worker asynchronously, so its first fetch can still hit
-  // the network. Retry the navigation until the worker is offline too and serves the cached fallback.
+  // Playwright does not always apply offline emulation to an already running service worker, which then fetches
+  // from the live server. Re-apply it before each retry until the worker serves the cached fallback.
+  let attempt = 0;
   await expect(async () => {
+    if (attempt++) {
+      await page.context().setOffline(false);
+      await page.context().setOffline(true);
+    }
     await page.goto("/app");
     await expect(page.getByRole("heading", { name: "You're offline." })).toBeVisible({ timeout: 2_000 });
   }).toPass({ timeout: 20_000 });
@@ -64,7 +69,7 @@ test("public screens are accessible and fit desktop and mobile", async ({
 test("register, verify, onboard, edit settings and logout through the browser", async ({
   page,
 }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(180_000); // Each route compiles on first visit in the dev server CI runs against.
   const email = `browser-${randomUUID()}@example.test`;
   const password = `Browser-${randomUUID()}`;
   const db = getDatabase();
@@ -188,7 +193,7 @@ test("register, verify, onboard, edit settings and logout through the browser", 
     await page.getByRole("link", { name: "Invoices", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Create your first invoice" })).toBeVisible();
     await page.getByRole("link", { name: "Create invoice" }).click();
-    await page.getByLabel("Client").selectOption({ label: "Brightside Labs — Brightside Creative Labs" });
+    await page.getByRole("combobox", { name: "Client", exact: true }).selectOption({ label: "Brightside Labs — Brightside Creative Labs" });
     await page.getByLabel("Line 1 saved item").selectOption({ label: "Website Design & Development" });
     await page.getByLabel("Line 1 discount type").selectOption("PERCENT");
     await page.getByLabel("Line 1 discount value").fill("10");
