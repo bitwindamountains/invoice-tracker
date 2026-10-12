@@ -60,7 +60,8 @@ Before launch, complete the original production plan's launch checklist and the 
 ## Project map
 
 - `src/app`: Next.js pages and route handlers
-- `src/components`: shared account UI
+- `src/components`: app shell (navigation, command palette), toasts, status chips, money formatting and shared account UI
+- `src/app/system.css`: design tokens, motion and component styles layered over `globals.css`
 - `src/lib`: auth, environment, database, email, session, logging
 - `src/features/onboarding`: business setup schema, loader, types, and wizard UI
 - `src/features/clients`: client validation, form, and archive controls

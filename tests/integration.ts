@@ -463,7 +463,8 @@ try {
   check((await db.invoice.findUniqueOrThrow({ where: { id: invoiceCreated.id } })).amountPaid.eq(0), "pending confirmation does not change the financial ledger");
   const duplicateConfirmation = await request(`/api/public/invoices/${publicToken}/payment-confirmations`, confirmationBody);
   check(duplicateConfirmation.status === 202 && (await duplicateConfirmation.json()).id === confirmationResult.id, "confirmation submission is idempotent");
-  const promiseResponse = await request(`/api/public/invoices/${publicToken}/payment-promises`, { promisedFor: "2026-09-30", note: "Expected transfer date" });
+  const promisedFor = new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10);
+  const promiseResponse = await request(`/api/public/invoices/${publicToken}/payment-promises`, { promisedFor, note: "Expected transfer date" });
   check(promiseResponse.status === 202 && await db.paymentPromise.count({ where: { invoiceId: invoiceCreated.id } }) === 1, "client can submit a payment promise");
   const inbox = await request("/api/payment-confirmations?status=PENDING", undefined, cookieA);
   check(inbox.ok && (await inbox.json()).some((item: { id: string }) => item.id === confirmationResult.id), "owner payment inbox lists the pending confirmation");
@@ -515,7 +516,7 @@ try {
   await assert.rejects(createExpense(userB.id, workspaceB.id, { categoryId: general.id, vendor: "Invalid", description: "Cross tenant", amount: "1", currency: "PHP", incurredOn: "2026-09-21", reference: "", notes: "" }), ExpenseNotFound); checks++; console.log("PASS expense category IDs cannot cross tenant boundaries");
   const expenseUpdate = await fetch(`${origin}/api/expenses/${expenseResult.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", Origin: origin, Cookie: cookieA }, body: JSON.stringify({ categoryId: general.id, vendor: "Cloud Host", description: "September hosting", amount: "250", currency: "PHP", incurredOn: "2026-09-21", reference: "HOST-SEP", notes: "Updated", version: 1 }) });
   check(expenseUpdate.ok && (await db.expense.findUniqueOrThrow({ where: { id: expenseResult.id } })).amount.eq(250), "expense records support optimistic updates");
-  const reports = await getReports(userA.id, workspaceA.id, { from: "2026-09-01", to: "2026-09-30" });
+  const reports = await getReports(userA.id, workspaceA.id, { from: "2026-09-01", to: "2026-09-30" }, new Date("2026-09-21T12:00:00.000Z"));
   check(reports.revenue.PHP === "1512" && reports.expenses.PHP === "250" && reports.net.PHP === "1262", "revenue, expense and net cash reports reconcile with ledger rows");
   check(reports.clients.some(item => item.clientName === invoiceClient.name && item.values.PHP === "1512"), "client revenue report reconciles confirmed payments");
   check(reports.aging.days1to30.PHP === "2016", "aging report assigns current balances to the correct overdue bucket");

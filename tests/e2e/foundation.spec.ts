@@ -157,7 +157,8 @@ test("register, verify, onboard, edit settings and logout through the browser", 
       ).violations,
     ).toEqual([]);
     await page.screenshot({ path: "test-results/clients-mobile.png", fullPage: true });
-    await page.getByRole("link", { name: "Catalog", exact: true }).click();
+    await page.getByRole("button", { name: "More" }).click();
+    await page.getByRole("dialog", { name: "More navigation" }).getByRole("link", { name: "Catalog", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Create your first catalog item" })).toBeVisible();
     await page.getByRole("link", { name: "Create item" }).click();
     await page.getByLabel("Name").fill("Website Development");
@@ -219,7 +220,7 @@ test("register, verify, onboard, edit settings and logout through the browser", 
     await page.getByRole("button", { name: "Confirm payment" }).click();
     await expect(page.getByText("Your payment inbox is clear.")).toBeVisible();
     await page.goto(ownerInvoiceUrl);
-    await expect(page.getByText("PAID", { exact: true })).toBeVisible();
+    await expect(page.locator(".detail-status").getByText("Paid", { exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Payment history" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Download receipt" })).toBeVisible();
     await page.goto("/app");
@@ -266,7 +267,8 @@ test("register, verify, onboard, edit settings and logout through the browser", 
       fullPage: true,
     });
     await page.goto("/app");
-    await page.getByRole("button", { name: "Sign out" }).click();
+    await page.getByRole("button", { name: "More" }).click();
+    await page.getByRole("dialog", { name: "More navigation" }).getByRole("button", { name: "Sign out" }).click();
     await expect(page).toHaveURL(/\/login$/);
     await page.goto("/app");
     await expect(page).toHaveURL(/\/login$/);

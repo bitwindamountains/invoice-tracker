@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Archive, Plus, Search, Users } from "lucide-react";
-import { PrivateHeader } from "@/components/private-header";
 import { requireSession } from "@/lib/session";
 import { listClients } from "@/services/clients";
 import { ensurePersonalWorkspace } from "@/services/workspace";
@@ -29,7 +28,6 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
   });
   const { items, total, page, pages, query } = result;
   return <div className="workspace">
-    <PrivateHeader businessName={workspace.name} />
     <main id="main" className="clients-main">
       <div className="page-title-row"><div><span className="eyebrow">CLIENT DIRECTORY</span><h1>Clients</h1><p>Keep billing details and client history in one place.</p></div><Link className="button primary" href="/app/clients/new"><Plus size={17}/>New client</Link></div>
       <form className="client-filters" method="get">

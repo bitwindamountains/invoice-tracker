@@ -1,4 +1,5 @@
 "use client";
+import { toast } from "@/components/toaster";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 export function RecordPayment({
@@ -39,6 +40,7 @@ export function RecordPayment({
       return;
     }
     setOpen(false);
+    toast("Payment recorded.");
     router.refresh();
   }
   return (

@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import { PrivateHeader } from "@/components/private-header";
 import { ClientForm } from "@/features/clients/client-form";
 import { requireSession } from "@/lib/session";
 import { ensurePersonalWorkspace } from "@/services/workspace";
@@ -10,5 +9,5 @@ export default async function NewClientPage() {
   const { user } = await requireSession();
   const workspace = await ensurePersonalWorkspace(user);
   if (!workspace.onboardingCompletedAt) redirect("/onboarding");
-  return <div className="workspace"><PrivateHeader businessName={workspace.name}/><main id="main" className="client-editor-main"><span className="eyebrow">NEW CLIENT</span><h1>Create a client</h1><p className="form-description">Add the details you need to prepare accurate invoices.</p><ClientForm initial={emptyClient}/></main></div>;
+  return <div className="workspace"><main id="main" className="client-editor-main"><span className="eyebrow">NEW CLIENT</span><h1>Create a client</h1><p className="form-description">Add the details you need to prepare accurate invoices.</p><ClientForm initial={emptyClient}/></main></div>;
 }
