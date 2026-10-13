@@ -1,6 +1,7 @@
 import "dotenv/config";
 import EmbeddedPostgres from "embedded-postgres";
 import { existsSync } from "node:fs";
+import { homedir } from "node:os";
 import { resolve } from "node:path";
 
 if (process.env.NODE_ENV === "production")
@@ -10,7 +11,8 @@ if (url.hostname !== "127.0.0.1" || url.pathname !== "/invoice_tracker")
   throw new Error(
     "Local helper requires 127.0.0.1 and database invoice_tracker",
   );
-const directory = resolve(".local/postgres");
+// Outside the project so database writes don't trigger dev-server recompiles and page reloads.
+const directory = resolve(homedir(), ".invoice-tracker/postgres");
 const postgres = new EmbeddedPostgres({
   databaseDir: directory,
   user: decodeURIComponent(url.username),

@@ -1,7 +1,6 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth-client";
 import { LogOut } from "lucide-react";
 export function SignOut() {
   const router = useRouter();
@@ -16,8 +15,8 @@ export function SignOut() {
           setPending(true);
           setFailed(false);
           try {
-            const result = await authClient.signOut();
-            if (result.error) throw new Error("Sign out failed");
+            const response = await fetch("/api/auth/sign-out", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+            if (!response.ok) throw new Error("Sign out failed");
             router.replace("/login");
             router.refresh();
           } catch {

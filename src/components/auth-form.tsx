@@ -3,7 +3,6 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
-import { authClient } from "@/lib/auth-client";
 
 export type AuthMode = "login" | "register" | "forgot" | "reset" | "verify";
 const copy = {
@@ -36,11 +35,9 @@ const copy = {
 
 export function AuthForm({
   mode,
-  token,
   invalidLink,
 }: {
   mode: AuthMode;
-  token?: string;
   invalidLink?: boolean;
 }) {
   const router = useRouter();
@@ -64,75 +61,42 @@ export function AuthForm({
     }
     setPending(true);
     try {
-      if (mode === "login") {
-        const result = await authClient.signIn.email({
-          email,
-          password,
-          rememberMe: values.get("remember") === "on",
-        });
-        if (result.error) {
-          setError(result.error.message ?? "Sign in failed.");
-          return;
-        }
+      const request = {
+        login: ["sign-in", { email, password }],
+        register: ["sign-up", { name: String(values.get("name")).trim(), email, password }],
+        forgot: ["forgot-password", { email }],
+        verify: ["resend-verification", { email }],
+        reset: ["reset-password", { password }],
+      } as const;
+      const [action, body] = request[mode];
+      const response = await fetch(`/api/auth/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const result = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        signedIn?: boolean;
+      };
+      if (!response.ok) {
+        setError(result.error ?? "Something went wrong. Please try again.");
+        return;
+      }
+      if (result.message) setMessage(result.message);
+      else if (mode === "login" || result.signedIn) {
         router.replace("/app");
         router.refresh();
-      } else if (mode === "register") {
-        const result = await authClient.signUp.email({
-          name: String(values.get("name")).trim(),
-          email,
-          password,
-          callbackURL: "/login",
-        });
-        if (result.error) {
-          setError(result.error.message ?? "Account creation failed.");
-          return;
-        }
+      } else
         setMessage(
-          "Check your inbox for a verification link. If you already have an account, sign in or reset your password.",
+          {
+            register:
+              "Check your inbox for a verification link. If you already have an account, sign in or reset your password.",
+            forgot: "If an account exists for this email, a reset link will arrive shortly.",
+            verify: "If your account needs verification, you’ll receive a new link shortly.",
+            reset: "Password updated. You can now sign in with your new password.",
+          }[mode],
         );
-      } else if (mode === "forgot") {
-        const result = await authClient.requestPasswordReset({
-          email,
-          redirectTo: "/reset-password",
-        });
-        if (result.error) {
-          setError(
-            "We couldn’t request a reset link. Please try again shortly.",
-          );
-          return;
-        }
-        setMessage(
-          "If an account exists for this email, a reset link will arrive shortly.",
-        );
-      } else if (mode === "verify") {
-        const result = await authClient.sendVerificationEmail({
-          email,
-          callbackURL: "/login",
-        });
-        if (result.error) {
-          setError(
-            "We couldn’t request a verification link. Please try again shortly.",
-          );
-          return;
-        }
-        setMessage(
-          "If your account needs verification, you’ll receive a new link shortly.",
-        );
-      } else {
-        const result = await authClient.resetPassword({
-          token,
-          newPassword: password,
-        });
-        if (result.error) {
-          setError(
-            result.error.message ?? "This reset link is invalid or expired.",
-          );
-          return;
-        }
-        setMessage(
-          "Password updated. You can now sign in with your new password.",
-        );
-      }
     } catch {
       setError("We couldn’t connect. Check your connection and try again.");
     } finally {
@@ -209,10 +173,6 @@ export function AuthForm({
         )}
         {mode === "login" && (
           <div className="form-options">
-            <label className="checkbox">
-              <input type="checkbox" name="remember" />
-              Remember me
-            </label>
             <Link href="/forgot-password">Forgot password?</Link>
           </div>
         )}
@@ -228,7 +188,7 @@ export function AuthForm({
         )}
         <button
           className="button primary full"
-          disabled={pending || (mode === "reset" && (!token || invalidLink))}
+          disabled={pending || (mode === "reset" && invalidLink)}
         >
           {pending ? "Please wait…" : content.action}
           <ArrowRight size={18} />

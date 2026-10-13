@@ -14,8 +14,9 @@ import { InvoiceNotFound, getInvoice } from "../src/services/invoices";
 import { getClientPaymentMetrics, getPaymentDashboard } from "../src/services/payment-intelligence";
 import { createExpense, ensureExpenseCategories, ExpenseNotFound } from "../src/services/expenses";
 import { getReports } from "../src/services/reports";
+import { createClient } from "@supabase/supabase-js";
 
-const origin = process.env.BETTER_AUTH_URL!;
+const origin = process.env.APP_URL!;
 if (
   process.env.EMAIL_MODE !== "file" ||
   !["localhost", "127.0.0.1"].includes(new URL(origin).hostname)
@@ -23,6 +24,16 @@ if (
   throw new Error(
     "Integration tests require a local server with file email delivery",
   );
+// Test accounts are created through sign-up without sending real emails, then removed with the admin API.
+if (process.env.REQUIRE_EMAIL_VERIFICATION !== "false" || !process.env.SUPABASE_SECRET_KEY)
+  throw new Error(
+    "Integration tests require REQUIRE_EMAIL_VERIFICATION=false and SUPABASE_SECRET_KEY",
+  );
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SECRET_KEY,
+  { auth: { persistSession: false, autoRefreshToken: false } },
+).auth.admin;
 const db = getDatabase();
 const run = randomUUID();
 const emailA = `test-a-${run}@example.test`;
@@ -63,23 +74,6 @@ function cookies(response: Response) {
     .map((value) => value.split(";")[0])
     .join("; ");
 }
-async function emailLink(email: string, subject: string) {
-  for (let attempt = 0; attempt < 30; attempt++) {
-    const filenames = (await readdir(".local/mail")).sort().reverse();
-    for (const filename of filenames) {
-      const message = JSON.parse(
-        await readFile(`.local/mail/${filename}`, "utf8"),
-      ) as { to: string; subject: string; text: string };
-      if (message.to === email && message.subject === subject) {
-        const link = message.text.match(/https?:\/\/\S+/)?.[0];
-        if (link) return link;
-      }
-    }
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  throw new Error("Expected local email was not delivered");
-}
-
 try {
   const live = await fetch(`${origin}/api/health/live`); const ready = await fetch(`${origin}/api/health/ready`);
   check(live.ok && (await live.json()).status === "ok", "liveness probe reports the running application");
@@ -102,42 +96,34 @@ try {
   );
   check(
     (
-      await request("/api/auth/sign-up/email", {
+      await request("/api/auth/sign-up", {
         name: "Invalid",
         email: "not-email",
         password: "short",
       })
-    ).status >= 400,
+    ).status === 400,
     "server rejects malformed signup",
   );
   for (const email of [emailA, emailB]) {
-    const response = await request("/api/auth/sign-up/email", {
+    const response = await request("/api/auth/sign-up", {
       name: "Foundation Tester",
       email,
       password,
-      callbackURL: "/login",
     });
-    check(response.ok, "registration succeeds");
-  }
-  check(
-    (await request("/api/auth/sign-in/email", { email: emailA, password }))
-      .status === 403,
-    "unverified account cannot sign in",
-  );
-  for (const email of [emailA, emailB]) {
-    const response = await fetch(await emailLink(email, "Verify your email"), {
-      redirect: "manual",
-    });
-    check(
-      response.status === 302,
-      "email verification link redirects to login",
+    check(response.ok && (await response.json()).signedIn === true, "registration creates a signed-in account");
+    // The first authenticated requests mirror the Supabase user into the app's User table; pages make several at once.
+    const firstRequests = await Promise.all(
+      Array.from({ length: 5 }, () => request("/api/workspaces/missing", undefined, cookies(response))),
     );
+    check(firstRequests.every((first) => first.status === 404), "concurrent first requests create the app user once without errors");
   }
+  const duplicate = await request("/api/auth/sign-up", { name: "Someone Else", email: emailA, password: newPassword });
+  check(duplicate.ok && (await duplicate.json()).signedIn !== true && duplicate.headers.getSetCookie().length === 0, "duplicate sign-up neither signs in nor reveals the account");
   const userA = await db.user.findUniqueOrThrow({ where: { email: emailA } });
   const userB = await db.user.findUniqueOrThrow({ where: { email: emailB } });
   check(
     userA.emailVerified && userB.emailVerified,
-    "verification persists in PostgreSQL",
+    "Supabase users are mirrored into PostgreSQL",
   );
   const workspaceA = await ensurePersonalWorkspace(userA);
   const initialB = await ensurePersonalWorkspace(userB);
@@ -163,7 +149,7 @@ try {
     })) === 1,
     "workspace creation audit is written once",
   );
-  const signedIn = await request("/api/auth/sign-in/email", {
+  const signedIn = await request("/api/auth/sign-in", {
     email: emailA,
     password,
   });
@@ -544,42 +530,34 @@ try {
     ).status === 403,
     "cross-origin auth mutation is rejected",
   );
+  const recovery = await supabaseAdmin.generateLink({ type: "recovery", email: emailA });
+  assert.ok(recovery.data.properties?.hashed_token, "recovery link generated");
+  const resetLink = `/auth/callback?token_hash=${recovery.data.properties.hashed_token}&type=recovery&next=/reset-password`;
+  const resetLanding = await request(resetLink);
+  check(resetLanding.headers.get("location")?.endsWith("/reset-password"), "password reset link opens the reset page");
+  const resetCookie = cookies(resetLanding);
   check(
-    (
-      await request("/api/auth/request-password-reset", {
-        email: emailA,
-        redirectTo: "/reset-password",
-      })
-    ).ok,
-    "password reset request succeeds",
-  );
-  const resetResponse = await fetch(
-    await emailLink(emailA, "Reset your password"),
-    { redirect: "manual" },
-  );
-  const resetLocation = resetResponse.headers.get("location");
-  assert.ok(resetLocation);
-  const token = new URL(resetLocation, origin).searchParams.get("token");
-  check(
-    (await request("/api/auth/reset-password", { token, newPassword })).ok,
-    "password reset token works",
+    (await request("/api/auth/reset-password", { password: newPassword }, resetCookie)).ok,
+    "password reset link works",
   );
   check(
-    (await request("/api/auth/reset-password", { token, newPassword }))
-      .status >= 400,
-    "reset token cannot be reused",
+    (await request(resetLink)).headers.get("location")?.includes("error=invalid_link"),
+    "reset link cannot be reused",
   );
   check(
+    (await request("/api/auth/reset-password", { password: newPassword }, resetCookie)).status === 401,
+    "reset session is ended after the password changes",
+  );  check(
     (await request(`/api/workspaces/${workspaceA.id}`, undefined, cookieA))
       .status === 401,
     "password reset revokes existing sessions",
   );
   check(
-    (await request("/api/auth/sign-in/email", { email: emailA, password }))
+    (await request("/api/auth/sign-in", { email: emailA, password }))
       .status === 401,
     "old password no longer works",
   );
-  const renewed = await request("/api/auth/sign-in/email", {
+  const renewed = await request("/api/auth/sign-in", {
     email: emailA,
     password: newPassword,
   });
@@ -598,7 +576,7 @@ try {
   let limited = false;
   for (let i = 0; i < 7; i++) {
     const response = await request(
-      "/api/auth/sign-in/email",
+      "/api/auth/sign-in",
       { email: emailA, password: "wrong-password" },
       "",
       { "x-forwarded-for": limiterIp },
@@ -635,5 +613,10 @@ try {
   });
   await db.workspace.deleteMany({ where: { ownerId: { in: userIds } } });
   await db.user.deleteMany({ where: { id: { in: userIds } } });
+  // Remove the test accounts from the shared Supabase Auth user list too.
+  const { data: listed } = await supabaseAdmin.listUsers({ perPage: 1000 });
+  for (const user of listed?.users ?? [])
+    if (user.email === emailA || user.email === emailB)
+      await supabaseAdmin.deleteUser(user.id);
   await db.$disconnect();
 }
