@@ -6,7 +6,7 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   workers: 1,
   use: {
-    baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
+    baseURL: process.env.APP_URL ?? "http://localhost:3000",
     headless: true,
   },
   reporter: "list",

@@ -123,8 +123,8 @@ export function BusinessSetupWizard({
         setError(result.error ?? "Business settings could not be saved.");
         return;
       }
+      // /app is dynamic, so replace() already fetches fresh data; an extra refresh() re-renders it and can swallow the next click.
       router.replace("/app");
-      router.refresh();
     } catch {
       setError(
         "We couldn’t connect. Your information is still here; try again.",
@@ -570,13 +570,14 @@ export function BusinessSetupWizard({
           ) : (
             <span />
           )}
+          {/* Distinct keys: reusing one element would turn Continue into a submit button mid-click and submit the form early. */}
           {step < steps.length - 1 ? (
-            <button type="button" className="button primary" onClick={next}>
+            <button key="continue" type="button" className="button primary" onClick={next}>
               Continue
               <ArrowRight size={17} />
             </button>
           ) : (
-            <button className="button primary" disabled={pending}>
+            <button key="submit" type="submit" className="button primary" disabled={pending}>
               {pending ? "Saving…" : editing ? "Save settings" : "Finish setup"}
               <Check size={17} />
             </button>

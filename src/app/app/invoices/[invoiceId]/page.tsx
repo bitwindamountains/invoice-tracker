@@ -119,11 +119,11 @@ export default async function InvoicePage({ params }: { params: Promise<{ invoic
                   {invoice.items.map((item) => (
                     <tr key={item.id}>
                       <td><strong>{item.description}</strong><span>per {item.unit}</span></td>
-                      <td>{item.quantity.toString()}</td>
-                      <td>{money(item.unitPrice)}</td>
-                      <td>{money(item.discountAmount)}</td>
-                      <td>{money(item.taxAmount)}</td>
-                      <td>{money(item.lineTotal)}</td>
+                      <td data-label="Qty">{item.quantity.toString()}</td>
+                      <td data-label="Rate">{money(item.unitPrice)}</td>
+                      <td data-label="Discount">{money(item.discountAmount)}</td>
+                      <td data-label="Tax">{money(item.taxAmount)}</td>
+                      <td data-label="Total">{money(item.lineTotal)}</td>
                     </tr>
                   ))}
                 </tbody>

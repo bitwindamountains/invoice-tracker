@@ -19,7 +19,7 @@ export async function POST(
         { error: "Request origin was rejected." },
         { status: 403, headers },
       );
-    const api = await getApiWorkspace(request);
+    const api = await getApiWorkspace();
     if (!api)
       return Response.json({ error: "Unauthorized" }, { status: 401, headers });
     const params = paramsSchema.parse(await context.params);

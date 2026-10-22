@@ -111,10 +111,10 @@ export default async function PublicInvoicePage({
                       <strong>{item.description}</strong>
                       <span>per {item.unit}</span>
                     </td>
-                    <td>{item.quantity}</td>
-                    <td>{money(item.unitPrice, snapshot.currency)}</td>
-                    <td>{money(item.taxAmount, snapshot.currency)}</td>
-                    <td>{money(item.lineTotal, snapshot.currency)}</td>
+                    <td data-label="Qty">{item.quantity}</td>
+                    <td data-label="Rate">{money(item.unitPrice, snapshot.currency)}</td>
+                    <td data-label="Tax">{money(item.taxAmount, snapshot.currency)}</td>
+                    <td data-label="Total">{money(item.lineTotal, snapshot.currency)}</td>
                   </tr>
                 ))}
               </tbody>
