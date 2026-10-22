@@ -27,6 +27,15 @@ test("public screens are accessible and fit desktop and mobile", async ({
         ),
       ).toBe(true);
       if (width === 390) {
+        // Axe otherwise samples text colours mid-fade on the animated landing story.
+        await page.evaluate(() =>
+          Promise.all(
+            document
+              .getAnimations()
+              .filter((animation) => animation.effect?.getTiming().iterations !== Infinity)
+              .map((animation) => animation.finished.catch(() => undefined)),
+          ),
+        );
         const accessibility = await new AxeBuilder({ page })
           .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
           .analyze();

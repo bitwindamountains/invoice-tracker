@@ -40,6 +40,7 @@ const emailA = `test-a-${run}@example.test`;
 const emailB = `test-b-${run}@example.test`;
 const password = `Test-only-${randomUUID()}`;
 const newPassword = `Changed-${randomUUID()}`;
+const staleUserId = randomUUID();
 let cookieA = "";
 let requestSequence = 0;
 let checks = 0;
@@ -104,6 +105,8 @@ try {
     ).status === 400,
     "server rejects malformed signup",
   );
+  // A leftover row from a deleted account still holds emailB under an id no Supabase user has.
+  await db.user.create({ data: { id: staleUserId, email: emailB, name: "Deleted Account" } });
   for (const email of [emailA, emailB]) {
     const response = await request("/api/auth/sign-up", {
       name: "Foundation Tester",
@@ -121,6 +124,11 @@ try {
   check(duplicate.ok && (await duplicate.json()).signedIn !== true && duplicate.headers.getSetCookie().length === 0, "duplicate sign-up neither signs in nor reveals the account");
   const userA = await db.user.findUniqueOrThrow({ where: { email: emailA } });
   const userB = await db.user.findUniqueOrThrow({ where: { email: emailB } });
+  check(
+    userB.id !== staleUserId &&
+      (await db.user.findUniqueOrThrow({ where: { id: staleUserId } })).email.endsWith("@invalid"),
+    "a stale row holding the email is released instead of blocking or handing over the account",
+  );
   check(
     userA.emailVerified && userB.emailVerified,
     "Supabase users are mirrored into PostgreSQL",
@@ -530,9 +538,16 @@ try {
     ).status === 403,
     "cross-origin auth mutation is rejected",
   );
-  const recovery = await supabaseAdmin.generateLink({ type: "recovery", email: emailA });
-  assert.ok(recovery.data.properties?.hashed_token, "recovery link generated");
-  const resetLink = `/auth/callback?token_hash=${recovery.data.properties.hashed_token}&type=recovery&next=/reset-password`;
+  check((await request("/api/auth/forgot-password", { email: emailA })).ok, "password reset email is requested");
+  let resetLink = "";
+  for (const filename of (await readdir(".local/mail")).sort().reverse()) {
+    const message = JSON.parse(await readFile(`.local/mail/${filename}`, "utf8")) as { to: string; text: string };
+    if (message.to !== emailA) continue;
+    const url = new URL(message.text.match(/https?:\/\/\S+\/auth\/callback\S+/)![0]);
+    resetLink = url.pathname + url.search;
+    break;
+  }
+  // Opened with no cookies from the requesting browser, as on another device.
   const resetLanding = await request(resetLink);
   check(resetLanding.headers.get("location")?.endsWith("/reset-password"), "password reset link opens the reset page");
   const resetCookie = cookies(resetLanding);
@@ -562,10 +577,19 @@ try {
     password: newPassword,
   });
   check(renewed.ok, "new password signs in");
+  check(
+    renewed.headers.getSetCookie().filter((value) => value.startsWith("sb-")).every((value) => /Max-Age=604800\b/.test(value) && /HttpOnly/i.test(value)),
+    "session cookies are HttpOnly and last seven days",
+  );
   cookieA = cookies(renewed);
+  const otherDevice = cookies(await request("/api/auth/sign-in", { email: emailA, password: newPassword }));
   check(
     (await request("/api/auth/sign-out", {}, cookieA)).ok,
     "logout succeeds",
+  );
+  check(
+    (await request(`/api/workspaces/${workspaceA.id}`, undefined, otherDevice)).ok,
+    "logout keeps the user's other sessions signed in",
   );
   check(
     (await request(`/api/workspaces/${workspaceA.id}`, undefined, cookieA))
@@ -595,7 +619,7 @@ try {
     where: { email: { in: [emailA, emailB] } },
     select: { id: true },
   });
-  const userIds = users.map((user) => user.id);
+  const userIds = [...users.map((user) => user.id), staleUserId];
   const workspaces = await db.workspace.findMany({
     where: { ownerId: { in: userIds } },
     select: { id: true },

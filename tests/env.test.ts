@@ -7,6 +7,7 @@ const local = {
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test_only_key",
   EMAIL_FROM: "test@example.com",
   EMAIL_MODE: "file",
+  SUPABASE_SECRET_KEY: "sb_secret_test_only_key",
 };
 describe("deployment environment", () => {
   it("accepts isolated local development", () =>
@@ -26,18 +27,10 @@ describe("deployment environment", () => {
         NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "REPLACE_WITH_PUBLISHABLE_KEY",
       }).success,
     ).toBe(false));
-  it("requires the secret key to skip email verification", () => {
+  it("requires the secret key for auth email links", () =>
     expect(
-      environmentSchema.safeParse({ ...local, REQUIRE_EMAIL_VERIFICATION: "false" }).success,
-    ).toBe(false);
-    expect(
-      environmentSchema.safeParse({
-        ...local,
-        REQUIRE_EMAIL_VERIFICATION: "false",
-        SUPABASE_SECRET_KEY: "sb_secret_test_only_key",
-      }).success,
-    ).toBe(true);
-  });
+      environmentSchema.safeParse({ ...local, SUPABASE_SECRET_KEY: undefined }).success,
+    ).toBe(false));
   it("refuses to skip email verification in production", () =>
     expect(
       environmentSchema.safeParse({

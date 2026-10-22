@@ -3,6 +3,8 @@ import { createSupabase, createSupabaseAdmin } from "@/lib/auth";
 import { hasSameOrigin } from "@/lib/api-session";
 import { getEnvironment } from "@/lib/env";
 import { takeRateLimit } from "@/lib/rate-limit";
+import { sendEmail } from "@/lib/email";
+import { logEvent } from "@/lib/logger";
 
 const email = z.email().max(254).transform((value) => value.trim().toLowerCase());
 const newPassword = z
@@ -48,9 +50,20 @@ export async function POST(
     );
 
   const supabase = await createSupabase();
-  // Links from Supabase emails return through /auth/callback, which exchanges the code for a session.
-  const callback = (next: string) =>
-    `${getEnvironment().APP_URL}/auth/callback?next=${encodeURIComponent(next)}`;
+  const admin = createSupabaseAdmin().auth.admin;
+  // The app sends auth emails itself with token_hash links that /auth/callback verifies. Supabase's own emails
+  // carry PKCE links that only work in the browser that asked, and its templates are shared across the project.
+  async function sendLink(tokenHash: string, type: "email" | "recovery", next: string, subject: string, intro: string) {
+    const link = `${getEnvironment().APP_URL}/auth/callback?token_hash=${encodeURIComponent(tokenHash)}&type=${type}&next=${encodeURIComponent(next)}`;
+    try {
+      await sendEmail({ to: data.email, subject, text: `${intro}\n\n${link}\n\nThe link works once and expires soon. If you didn't ask for this, you can ignore this email.` });
+      return true;
+    } catch {
+      logEvent("auth_email_failed", { route: action });
+      return false;
+    }
+  }
+  const emailFailed = () => reply({ error: "We couldn't send the email. Please try again in a few minutes." }, 503);
 
   switch (action as Action) {
     case "sign-in": {
@@ -62,7 +75,7 @@ export async function POST(
     }
     case "sign-up": {
       if (getEnvironment().REQUIRE_EMAIL_VERIFICATION === "false") {
-        const created = await createSupabaseAdmin().auth.admin.createUser({
+        const created = await admin.createUser({
           email: data.email,
           password: data.password,
           email_confirm: true,
@@ -76,30 +89,32 @@ export async function POST(
         if (error) return reply({ error: "Account created, but sign-in failed. Please sign in." }, 500);
         return reply({ ok: true, signedIn: true });
       }
-      const { error } = await supabase.auth.signUp({
+      const { data: created, error } = await admin.generateLink({
+        type: "signup",
         email: data.email,
         password: data.password,
-        options: { data: { name: data.name }, emailRedirectTo: callback("/app") },
+        options: { data: { name: data.name } },
       });
       if (error?.code === "weak_password") return reply({ error: error.message }, 400);
-      if (error?.status === 429) return reply({ error: "Too many emails were sent. Please try again later." }, 429);
+      // An existing email gets the same reply as a new one, so sign-up doesn't reveal who has an account.
+      if (error?.code === "email_exists" || error?.code === "user_already_exists") return reply({ ok: true });
       if (error) return reply({ error: "Account creation failed. Please try again." }, 400);
+      if (!(await sendLink(created.properties.hashed_token, "email", "/app", "Confirm your Invoice Tracker account", "Confirm your email to finish creating your Invoice Tracker account:")))
+        return emailFailed();
       return reply({ ok: true });
     }
     case "forgot-password": {
-      const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
-        redirectTo: callback("/reset-password"),
-      });
-      if (error?.status === 429) return reply({ error: "Too many emails were sent. Please try again later." }, 429);
+      // Unknown emails fail to generate a link and get the same reply.
+      const { data: recovery } = await admin.generateLink({ type: "recovery", email: data.email });
+      if (recovery?.properties && !(await sendLink(recovery.properties.hashed_token, "recovery", "/reset-password", "Reset your Invoice Tracker password", "Use this link to choose a new password:")))
+        return emailFailed();
       return reply({ ok: true });
     }
     case "resend-verification": {
-      const { error } = await supabase.auth.resend({
-        type: "signup",
-        email: data.email,
-        options: { emailRedirectTo: callback("/app") },
-      });
-      if (error?.status === 429) return reply({ error: "Too many emails were sent. Please try again later." }, 429);
+      // Verifying a magic link confirms the address. Confirmed accounts get nothing: they sign in with their password.
+      const { data: magic } = await admin.generateLink({ type: "magiclink", email: data.email });
+      if (magic?.properties && !magic.user.email_confirmed_at && !(await sendLink(magic.properties.hashed_token, "email", "/app", "Confirm your Invoice Tracker account", "Confirm your email to finish creating your Invoice Tracker account:")))
+        return emailFailed();
       return reply({ ok: true });
     }
     case "reset-password": {
@@ -112,7 +127,8 @@ export async function POST(
       return reply({ ok: true });
     }
     case "sign-out": {
-      const { error } = await supabase.auth.signOut();
+      // Only this browser: the default global scope would end the user's other devices and apps on the project.
+      const { error } = await supabase.auth.signOut({ scope: "local" });
       if (error) return reply({ error: "Could not sign out." }, 500);
       return reply({ ok: true });
     }

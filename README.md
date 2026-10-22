@@ -28,9 +28,9 @@ Open **http://127.0.0.1:3000** (it matches `APP_URL`). The app and local Postgre
 
 ## Accounts (Supabase Auth)
 
-Sign-up, sign-in, email verification and password reset use Supabase Auth. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` to your project's values, and add `APP_URL` followed by `/auth/callback` (for example `http://127.0.0.1:3000/auth/callback`) to **Authentication → URL Configuration → Redirect URLs** in the Supabase dashboard, or email links fall back to the project's Site URL. Supabase sends the verification and reset emails; the app mirrors each verified user into its own `User` table, which workspaces reference.
+Sign-up, sign-in, email verification and password reset use Supabase Auth. Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and the server-only `SUPABASE_SECRET_KEY` to your project's values. The app sends the verification and reset emails itself through `EMAIL_MODE`, with links to `APP_URL/auth/callback` built from the admin API, so they work on any device and don't depend on the Supabase project's shared email templates. The app mirrors each verified user into its own `User` table, which workspaces reference. Session cookies last seven days and are renewed while the user is active.
 
-For development you can skip email verification with `REQUIRE_EMAIL_VERIFICATION=false` plus the server-only `SUPABASE_SECRET_KEY`: sign-up then creates an already-confirmed account and signs it in. Production refuses this setting. The integration and browser tests require it, and delete the Supabase accounts they create; CI reads the key from the `SUPABASE_SECRET_KEY` secret and the URL and publishable key from repository variables.
+For development you can skip email verification with `REQUIRE_EMAIL_VERIFICATION=false`: sign-up then creates an already-confirmed account and signs it in. Production refuses this setting. The integration and browser tests require it, and delete the Supabase accounts they create; CI reads the key from the `SUPABASE_SECRET_KEY` secret and the URL and publishable key from repository variables.
 
 Invoice and reminder emails are still sent by the app. With `EMAIL_MODE=file` they are written to **`.local/mail/*.json`** instead of being delivered.
 

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { getEnvironment } from "@/lib/env";
-import { sessionCookieOptions } from "@/lib/session-cookie";
+import { sessionCookieOptions, withSessionLifetime } from "@/lib/session-cookie";
 
-type CookieWrite = { name: string; value: string; options: object };
+type CookieWrite = { name: string; value: string; options: { maxAge?: number } };
 
 // Server Components can't write cookies, so expiring Supabase sessions are refreshed here.
 async function refreshSession(request: NextRequest) {
@@ -40,7 +40,7 @@ export async function proxy(request: NextRequest) {
   headers.set("x-nonce", nonce);
   headers.set("Content-Security-Policy", policy);
   const response = NextResponse.next({ request: { headers } });
-  session.writes.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+  session.writes.forEach(({ name, value, options }) => response.cookies.set(name, value, withSessionLifetime(options)));
   Object.entries(session.cacheHeaders).forEach(([key, value]) => response.headers.set(key, value));
   response.headers.set("Content-Security-Policy", policy);
   response.headers.set("Cache-Control", "private, no-store");

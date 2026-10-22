@@ -21,8 +21,8 @@ export const environmentSchema = z
         (value) => !value.includes("REPLACE_WITH"),
         "Set the project's publishable key",
       ),
-    // Server-only admin key. Never prefix with NEXT_PUBLIC_: that would ship it to browsers.
-    SUPABASE_SECRET_KEY: z.string().min(20).optional(),
+    // Server-only admin key, used to create auth email links. Never prefix with NEXT_PUBLIC_: that would ship it to browsers.
+    SUPABASE_SECRET_KEY: z.string().min(20),
     REQUIRE_EMAIL_VERIFICATION: z.enum(["true", "false"]).default("true"),
     EMAIL_MODE: z.enum(["file", "resend"]).default("file"),
     EMAIL_FROM: z.string().min(3),
@@ -38,12 +38,6 @@ export const environmentSchema = z
         code: "custom",
         path: ["RESEND_API_KEY"],
         message: "Required for Resend",
-      });
-    if (value.REQUIRE_EMAIL_VERIFICATION === "false" && !value.SUPABASE_SECRET_KEY)
-      context.addIssue({
-        code: "custom",
-        path: ["SUPABASE_SECRET_KEY"],
-        message: "Required to create accounts without email verification",
       });
     if (value.NODE_ENV === "production") {
       if (!value.APP_URL.startsWith("https://"))

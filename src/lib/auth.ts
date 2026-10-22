@@ -1,10 +1,11 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { createClient, type User as SupabaseUser } from "@supabase/supabase-js";
 import { Prisma } from "@/generated/prisma/client";
 import { getDatabase } from "./db";
 import { getEnvironment } from "./env";
-import { sessionCookieOptions } from "./session-cookie";
+import { sessionCookieOptions, withSessionLifetime } from "./session-cookie";
 
 export async function createSupabase() {
   const environment = getEnvironment();
@@ -19,7 +20,7 @@ export async function createSupabase() {
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options),
+              cookieStore.set(name, value, withSessionLifetime(options)),
             );
           } catch {
             // Server Components can't write cookies; the proxy refreshes sessions.
@@ -33,8 +34,6 @@ export async function createSupabase() {
 // Admin client (secret key) for server-side account creation; it bypasses RLS, so never expose it.
 export function createSupabaseAdmin() {
   const environment = getEnvironment();
-  if (!environment.SUPABASE_SECRET_KEY)
-    throw new Error("SUPABASE_SECRET_KEY is not configured");
   return createClient(
     environment.NEXT_PUBLIC_SUPABASE_URL,
     environment.SUPABASE_SECRET_KEY,
@@ -53,6 +52,13 @@ async function syncUser(user: SupabaseUser & { email: string }) {
   const database = getDatabase();
   const name = displayName(user, user.email);
   let existing = await database.user.findUnique({ where: { id: user.id } });
+  if (!existing || existing.email !== user.email)
+    // Supabase emails are unique, so another row holding this one is stale (a deleted or since-renamed account).
+    // Release it rather than hand its workspace to the new owner of the address.
+    await database.user.updateMany({
+      where: { email: user.email, NOT: { id: user.id } },
+      data: { email: `released-${user.id}-${Date.now()}@invalid` },
+    });
   if (!existing)
     try {
       return await database.user.create({
@@ -72,11 +78,12 @@ async function syncUser(user: SupabaseUser & { email: string }) {
 }
 
 // getUser() asks Supabase Auth to validate the token, unlike reading the cookie alone.
-export async function getSession() {
+// cache() shares that round trip between the layout and page of one render.
+export const getSession = cache(async () => {
   const supabase = await createSupabase();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user?.email || !user.email_confirmed_at) return null;
   return { user: await syncUser({ ...user, email: user.email }) };
-}
+});
