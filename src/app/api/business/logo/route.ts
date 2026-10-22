@@ -1,10 +1,10 @@
-import { getAuth } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 import { getDatabase } from "@/lib/db";
 import { ensurePersonalWorkspace } from "@/services/workspace";
 
-export async function GET(request: Request) {
-  const session = await getAuth().api.getSession({ headers: request.headers });
-  if (!session?.user.emailVerified) return new Response(null, { status: 401 });
+export async function GET() {
+  const session = await getSession();
+  if (!session) return new Response(null, { status: 401 });
   const workspace = await ensurePersonalWorkspace(session.user);
   const profile = await getDatabase().businessProfile.findUnique({
     where: { workspaceId: workspace.id },

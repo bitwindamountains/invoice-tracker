@@ -620,6 +620,15 @@ input::placeholder {
 .invoice-items th:first-child, .invoice-items td:first-child { text-align: left; }
 .invoice-items td { padding: 15px 10px; text-align: right; border-bottom: 1px solid var(--border); }
 .invoice-items td span { display: block; color: var(--secondary); font-size: 11px; }
+/* Phones: the 690px table would hide Rate/Total behind a sideways scroll, so each line stacks with labelled values. */
+@media (max-width: 760px) {
+  .invoice-items table, .invoice-items tbody, .invoice-items tr, .invoice-items td { display: block; min-width: 0; }
+  .invoice-items thead { display: none; }
+  .invoice-items tr { padding: 14px 0; border-bottom: 1px solid var(--border); }
+  .invoice-items td { display: flex; justify-content: space-between; gap: 16px; padding: 3px 0; border: 0; }
+  .invoice-items td:first-child { display: block; padding-bottom: 8px; }
+  .invoice-items td[data-label]::before { content: attr(data-label); color: var(--secondary); }
+}
 .invoice-totals { display: flex; justify-content: flex-end; padding-top: 24px; }
 .invoice-totals > div { display: grid; grid-template-columns: auto auto; gap: 8px 32px; min-width: 300px; }
 .invoice-totals strong { text-align: right; }

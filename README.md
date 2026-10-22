@@ -22,13 +22,17 @@ npm run db:migrate
 npm run dev
 ```
 
-Open **http://localhost:3000**. Use this exact origin for registration and login; it matches `BETTER_AUTH_URL`. The app and local PostgreSQL bind to loopback only. The local helper downloads PostgreSQL through a development-only npm dependency; Docker is not required. Its data persists in `.local/postgres`. Stop it with Ctrl+C.
+Open **http://127.0.0.1:3000** (it matches `APP_URL`). The app and local PostgreSQL bind to loopback only. The local helper downloads PostgreSQL through a development-only npm dependency; Docker is not required. Its data persists in `~/.invoice-tracker/postgres`, outside the project so database writes don't trigger dev-server reloads. Stop it with Ctrl+C.
 
 `setup:local` creates random local credentials in an ignored `.env` and never overwrites an existing file. If you prefer your own PostgreSQL instance, configure `DATABASE_URL` and skip `db:local`.
 
-## Verify a local account
+## Accounts (Supabase Auth)
 
-Register using the application. With `EMAIL_MODE=file`, verification and reset emails are written to **`.local/mail/*.json`**, outside the web root. Open the latest matching file privately and paste its link into your browser. These files contain authentication secrets; do not share them or commit them. There is no public development inbox or verification bypass. No messages are sent externally in local mode.
+Sign-up, sign-in, email verification and password reset use Supabase Auth. Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and the server-only `SUPABASE_SECRET_KEY` to your project's values. The app sends the verification and reset emails itself through `EMAIL_MODE`, with links to `APP_URL/auth/callback` built from the admin API, so they work on any device and don't depend on the Supabase project's shared email templates. The app mirrors each verified user into its own `User` table, which workspaces reference. Session cookies last seven days and are renewed while the user is active.
+
+For development you can skip email verification with `REQUIRE_EMAIL_VERIFICATION=false`: sign-up then creates an already-confirmed account and signs it in. Production refuses this setting. The integration and browser tests require it, and delete the Supabase accounts they create; CI reads the key from the `SUPABASE_SECRET_KEY` secret and the URL and publishable key from repository variables.
+
+Invoice and reminder emails are still sent by the app. With `EMAIL_MODE=file` they are written to **`.local/mail/*.json`** instead of being delivered.
 
 No demo users or financial seed records are created. Automated tests create unique disposable accounts and remove those accounts after execution.
 
@@ -51,7 +55,7 @@ The integration suite exercises real HTTP routes and PostgreSQL. Browser tests c
 
 ## Production configuration
 
-Use managed PostgreSQL, set `BETTER_AUTH_URL` to the exact HTTPS origin, create a strong random `BETTER_AUTH_SECRET`, and configure `EMAIL_MODE=resend`, `RESEND_API_KEY`, and a verified sender in `EMAIL_FROM`. Production deliberately refuses file-mode email or an HTTP auth origin.
+Use managed PostgreSQL, set `APP_URL` to the exact HTTPS origin (and add its `/auth/callback` to Supabase's redirect URLs), set the Supabase URL and publishable key, and configure `EMAIL_MODE=resend`, `RESEND_API_KEY`, and a verified sender in `EMAIL_FROM`. Production deliberately refuses file-mode email or an HTTP auth origin.
 
 Run migrations as a separate release step with `npm run db:migrate`; then `npm run build` and `npm start`. `npm start` binds loopback for a local reverse proxy. Container hosts may use `npx next start --hostname 0.0.0.0` behind their HTTPS ingress. Do not expose the development server or embedded database publicly.
 

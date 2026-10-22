@@ -10,7 +10,7 @@ export async function POST(request: Request, context: { params: Promise<{ client
   const requestId = crypto.randomUUID();
   try {
     if (!hasSameOrigin(request)) return Response.json({ error: "Request origin was rejected." }, { status: 403, headers: responseHeaders });
-    const api = await getApiWorkspace(request);
+    const api = await getApiWorkspace();
     if (!api) return Response.json({ error: "Unauthorized" }, { status: 401, headers: responseHeaders });
     const parsed = parameters.safeParse(await context.params);
     if (!parsed.success) return Response.json({ error: "Invalid client" }, { status: 400, headers: responseHeaders });

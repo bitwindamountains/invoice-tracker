@@ -1,5 +1,6 @@
 import { ZodError } from "zod";
-import { getAuth } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
+import { hasSameOrigin } from "@/lib/api-session";
 import { logEvent } from "@/lib/logger";
 import { ensurePersonalWorkspace } from "@/services/workspace";
 import { InvalidLogo, saveBusinessProfile } from "@/services/business-profile";
@@ -13,16 +14,13 @@ export async function POST(request: Request) {
     "X-Request-Id": requestId,
   };
   try {
-    const origin = request.headers.get("origin");
-    if (!origin || origin !== new URL(request.url).origin)
+    if (!hasSameOrigin(request))
       return Response.json(
         { error: "Request origin was rejected." },
         { status: 403, headers },
       );
-    const session = await getAuth().api.getSession({
-      headers: request.headers,
-    });
-    if (!session?.user.emailVerified)
+    const session = await getSession();
+    if (!session)
       return Response.json({ error: "Unauthorized" }, { status: 401, headers });
     const declaredLength = Number(request.headers.get("content-length") ?? 0);
     if (declaredLength > MAX_BODY_BYTES)

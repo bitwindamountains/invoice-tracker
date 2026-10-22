@@ -8,7 +8,7 @@ const responseHeaders = { "Cache-Control": "private, no-store" };
 export async function GET(request: Request) {
   const requestId = crypto.randomUUID();
   try {
-    const context = await getApiWorkspace(request);
+    const context = await getApiWorkspace();
     if (!context) return Response.json({ error: "Unauthorized" }, { status: 401, headers: responseHeaders });
     const url = new URL(request.url);
     const result = await listClients(context.session.user.id, context.workspace.id, {
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   const requestId = crypto.randomUUID();
   try {
     if (!hasSameOrigin(request)) return Response.json({ error: "Request origin was rejected." }, { status: 403, headers: responseHeaders });
-    const context = await getApiWorkspace(request);
+    const context = await getApiWorkspace();
     if (!context) return Response.json({ error: "Unauthorized" }, { status: 401, headers: responseHeaders });
     const text = await request.text();
     if (Buffer.byteLength(text, "utf8") > 32 * 1024) return Response.json({ error: "Request is too large." }, { status: 413, headers: responseHeaders });

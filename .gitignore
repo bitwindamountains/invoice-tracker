@@ -24,3 +24,6 @@ secrets/
 Thumbs.db
 tmp/
 output/
+
+# Local Impeccable design-tool state
+.impeccable/

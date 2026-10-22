@@ -9,7 +9,7 @@ const parameters = z.object({ clientId: z.string().min(1).max(128) });
 export async function GET(request: Request, context: { params: Promise<{ clientId: string }> }) {
   const requestId = crypto.randomUUID();
   try {
-    const api = await getApiWorkspace(request);
+    const api = await getApiWorkspace();
     if (!api) return Response.json({ error: "Unauthorized" }, { status: 401, headers: responseHeaders });
     const parsed = parameters.safeParse(await context.params);
     if (!parsed.success) return Response.json({ error: "Invalid client" }, { status: 400, headers: responseHeaders });
@@ -26,7 +26,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ clien
   const requestId = crypto.randomUUID();
   try {
     if (!hasSameOrigin(request)) return Response.json({ error: "Request origin was rejected." }, { status: 403, headers: responseHeaders });
-    const api = await getApiWorkspace(request);
+    const api = await getApiWorkspace();
     if (!api) return Response.json({ error: "Unauthorized" }, { status: 401, headers: responseHeaders });
     const parsed = parameters.safeParse(await context.params);
     if (!parsed.success) return Response.json({ error: "Invalid client" }, { status: 400, headers: responseHeaders });

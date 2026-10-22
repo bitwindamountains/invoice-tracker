@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { randomUUID } from "node:crypto";
-import { readdir, readFile } from "node:fs/promises";
+import { createClient } from "@supabase/supabase-js";
 import { getDatabase } from "../../src/lib/db";
 
 test("public screens are accessible and fit desktop and mobile", async ({
@@ -27,6 +27,15 @@ test("public screens are accessible and fit desktop and mobile", async ({
         ),
       ).toBe(true);
       if (width === 390) {
+        // Axe otherwise samples text colours mid-fade on the animated landing story.
+        await page.evaluate(() =>
+          Promise.all(
+            document
+              .getAnimations()
+              .filter((animation) => animation.effect?.getTiming().iterations !== Infinity)
+              .map((animation) => animation.finished.catch(() => undefined)),
+          ),
+        );
         const accessibility = await new AxeBuilder({ page })
           .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
           .analyze();
@@ -66,7 +75,7 @@ test("public screens are accessible and fit desktop and mobile", async ({
   expect(errors).toEqual([]);
 });
 
-test("register, verify, onboard, edit settings and logout through the browser", async ({
+test("register, onboard, edit settings, logout and sign in through the browser", async ({
   page,
 }) => {
   test.setTimeout(180_000); // Each route compiles on first visit in the dev server CI runs against.
@@ -92,23 +101,6 @@ test("register, verify, onboard, edit settings and logout through the browser", 
     ).toContainText("don’t match");
     await page.getByLabel("Confirm password").fill(password);
     await page.getByRole("button", { name: "Create account" }).click();
-    await expect(page.getByRole("status")).toContainText("Check your inbox");
-    let link: string | undefined;
-    for (const filename of (await readdir(".local/mail")).sort().reverse()) {
-      const message = JSON.parse(
-        await readFile(`.local/mail/${filename}`, "utf8"),
-      ) as { to: string; text: string };
-      if (message.to === email) {
-        link = message.text.match(/https?:\/\/\S+/)?.[0];
-        break;
-      }
-    }
-    expect(link).toBeTruthy();
-    await page.goto(link!);
-    await expect(page).toHaveURL(/\/login$/);
-    await page.getByLabel("Email address").fill(email);
-    await page.getByLabel("Password", { exact: true }).fill(password);
-    await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await expect(page).toHaveURL(/\/onboarding$/, { timeout: 15_000 });
     await page.getByLabel("Business name").fill("Alex Design Studio");
     await page.getByLabel("Address line 1").fill("10 Example Street");
@@ -121,8 +113,9 @@ test("register, verify, onboard, edit settings and logout through the browser", 
     await page.getByLabel("Invoice prefix").fill("ADS-");
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page.getByText("How can clients pay you?")).toBeVisible();
-    // The successful submit immediately replaces the onboarding tree.
-    await page.getByRole("button", { name: "Finish setup" }).dispatchEvent("click");
+    // Reaching the last step must not submit by itself: setup is saved only by Finish setup.
+    await expect(page.getByRole("button", { name: "Finish setup" })).toBeEnabled();
+    await page.getByRole("button", { name: "Finish setup" }).click();
     await expect(
       page.getByRole("heading", {
         name: "Here’s what needs attention.",
@@ -281,6 +274,10 @@ test("register, verify, onboard, edit settings and logout through the browser", 
     await expect(page).toHaveURL(/\/login$/);
     await page.goto("/app");
     await expect(page).toHaveURL(/\/login$/);
+    await page.getByLabel("Email address").fill(email);
+    await page.getByLabel("Password", { exact: true }).fill(password);
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(page).toHaveURL(/\/app$/, { timeout: 15_000 });
   } finally {
     const user = await db.user.findUnique({ where: { email } });
     if (user) {
@@ -301,6 +298,15 @@ test("register, verify, onboard, edit settings and logout through the browser", 
       }
       await db.user.delete({ where: { id: user.id } });
     }
+    // Remove the test account from the shared Supabase Auth user list too.
+    const admin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SECRET_KEY!,
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    ).auth.admin;
+    const { data } = await admin.listUsers({ perPage: 1000 });
+    const account = data?.users.find((candidate) => candidate.email === email);
+    if (account) await admin.deleteUser(account.id);
     await db.$disconnect();
   }
 });

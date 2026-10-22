@@ -12,14 +12,18 @@ export const environmentSchema = z
         (value) => /^postgres(ql)?:/.test(value),
         "PostgreSQL URL required",
       ),
-    BETTER_AUTH_SECRET: z
+    APP_URL: z.string().url(),
+    NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z
       .string()
-      .min(32)
+      .min(20)
       .refine(
         (value) => !value.includes("REPLACE_WITH"),
-        "Generate a random secret",
+        "Set the project's publishable key",
       ),
-    BETTER_AUTH_URL: z.string().url(),
+    // Server-only admin key, used to create auth email links. Never prefix with NEXT_PUBLIC_: that would ship it to browsers.
+    SUPABASE_SECRET_KEY: z.string().min(20),
+    REQUIRE_EMAIL_VERIFICATION: z.enum(["true", "false"]).default("true"),
     EMAIL_MODE: z.enum(["file", "resend"]).default("file"),
     EMAIL_FROM: z.string().min(3),
     RESEND_API_KEY: z.string().optional(),
@@ -36,11 +40,17 @@ export const environmentSchema = z
         message: "Required for Resend",
       });
     if (value.NODE_ENV === "production") {
-      if (!value.BETTER_AUTH_URL.startsWith("https://"))
+      if (!value.APP_URL.startsWith("https://"))
         context.addIssue({
           code: "custom",
-          path: ["BETTER_AUTH_URL"],
+          path: ["APP_URL"],
           message: "Production requires HTTPS",
+        });
+      if (value.REQUIRE_EMAIL_VERIFICATION !== "true")
+        context.addIssue({
+          code: "custom",
+          path: ["REQUIRE_EMAIL_VERIFICATION"],
+          message: "Production requires verified emails",
         });
       if (value.EMAIL_MODE !== "resend")
         context.addIssue({

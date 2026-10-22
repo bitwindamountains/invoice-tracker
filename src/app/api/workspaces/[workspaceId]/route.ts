@@ -1,10 +1,10 @@
-import { getAuth } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 import { authorizeWorkspace, AccessDenied } from "@/services/workspace";
 import { logEvent } from "@/lib/logger";
 import { z } from "zod";
 
 export async function GET(
-  request: Request,
+  _request: Request,
   context: { params: Promise<{ workspaceId: string }> },
 ) {
   const requestId = crypto.randomUUID();
@@ -13,10 +13,8 @@ export async function GET(
     "X-Request-Id": requestId,
   };
   try {
-    const session = await getAuth().api.getSession({
-      headers: request.headers,
-    });
-    if (!session?.user.emailVerified)
+    const session = await getSession();
+    if (!session)
       return Response.json({ error: "Unauthorized" }, { status: 401, headers });
     const parameters = z
       .object({ workspaceId: z.string().min(1).max(128) })

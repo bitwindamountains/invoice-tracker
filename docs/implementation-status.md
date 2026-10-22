@@ -1,8 +1,19 @@
-# Implementation status — 2026-09-23
+# Implementation status — 2026-10-13
+
+## 2026-10-13: Supabase database and Supabase Auth
+
+- **Database:** runs on the shared Supabase project `tfkazskwrarwbjdtlqed` in its own `invoicetracker` schema, owned by a dedicated `invoicetracker` login (search path and 30 s statement timeout set on the role), following the same pattern as the `rentflow` schema. Every table has row-level security enabled with no policies, so the Data API cannot reach it; the app connects as the owner through the Session pooler. `src/lib/db.ts` passes `?schema=` from `DATABASE_URL` to the Prisma pg adapter, which otherwise ignores it.
+- **Auth:** Better Auth is replaced by Supabase Auth via `@supabase/ssr`. All auth calls run on the server (`/api/auth/[action]`, `/auth/callback`), so the CSP stays `connect-src 'self'`. Session cookies are HttpOnly. The proxy refreshes sessions. Verified Supabase users are mirrored into the app's `User` table on first request (race-safe), since workspaces reference it. Better Auth's `Session`, `Account` and `Verification` tables were dropped (migration `20261013000000_supabase_auth`).
+- **Email verification:** `REQUIRE_EMAIL_VERIFICATION=false` creates confirmed accounts at sign-up for development; production refuses it. The app sends auth emails itself through `EMAIL_MODE`, with `token_hash` links from the admin API (so `SUPABASE_SECRET_KEY` is always required): Supabase's PKCE links only worked in the requesting browser, and its email templates are shared across the project.
+- **Pre-deploy review fixes (2026-10-22):** session cookies are `Secure` in production and capped at seven days (`@supabase/ssr` otherwise writes 400 days); sign-out ends only the current session; a stale `User` row holding a re-registered email is released instead of crashing every request; `getSession()` is cached per render.
+- **Fixes:** same-origin checks compare against `APP_URL` (Next reports `localhost` in development even when the browser uses `127.0.0.1`); the local embedded Postgres data moved to `~/.invoice-tracker/postgres` so database writes no longer trigger dev-server reloads.
+- **Configuration:** `BETTER_AUTH_SECRET`/`BETTER_AUTH_URL` are replaced by `APP_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY` and `REQUIRE_EMAIL_VERIFICATION`. CI expects the secret key as a GitHub secret and the URL and publishable key as repository variables.
+
+**Open:** add `<APP_URL>/auth/callback` to the Supabase project's redirect URLs before turning verification on; Supabase's built-in email sender only reaches organization members, so real sign-ups need custom SMTP (a project-wide setting shared with other apps); configure the CI secret and variables.
 
 ## Completed phases
 
-- Phase 1: secure Next.js, Better Auth, PostgreSQL/Prisma, tenant memberships, local services, CI, tests and operational documentation.
+- Phase 1: secure Next.js, Better Auth (since replaced by Supabase Auth), PostgreSQL/Prisma, tenant memberships, local services, CI, tests and operational documentation.
 - Phase 2: business onboarding, branding, invoice defaults and payment instructions.
 - Phase 3: tenant-scoped client profiles, search, pagination, archive/restore and audit history.
 - Phase 4: reusable product/service catalog with exact decimal prices and lifecycle controls.
@@ -19,7 +30,7 @@
 
 ## Database and API changes
 
-Ten migrations are applied locally. The schema now includes expense categories and exact-decimal expense records alongside the existing identity, workspace, business, client, catalog, invoice, delivery, payment and reminder records.
+Eleven migrations are applied on Supabase (the eleventh drops Better Auth's tables). The schema now includes expense categories and exact-decimal expense records alongside the existing identity, workspace, business, client, catalog, invoice, delivery, payment and reminder records.
 
 The Phase 10 routes record and update expenses, manage categories and export reconciled CSV reports. OWNER/ADMIN authorization, exact-origin enforcement, bounded validation, tenant predicates and optimistic versions apply to financial mutations.
 
