@@ -4,6 +4,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient, type User as SupabaseUser } from "@supabase/supabase-js";
 import { Prisma } from "@/generated/prisma/client";
 import { getDatabase } from "./db";
+import { DEMO_COOKIE, findDemoUser } from "./demo-session";
 import { getEnvironment, isDemoMode } from "./env";
 import { sessionCookieOptions, withSessionLifetime } from "./session-cookie";
 
@@ -86,6 +87,10 @@ async function syncUser(user: SupabaseUser & { email: string }) {
 // getUser() asks Supabase Auth to validate the token, unlike reading the cookie alone.
 // cache() shares that round trip between the layout and page of one render.
 export const getSession = cache(async () => {
+  if (isDemoMode()) {
+    const user = await findDemoUser((await cookies()).get(DEMO_COOKIE)?.value);
+    return user ? { user } : null;
+  }
   const supabase = await createSupabase();
   const {
     data: { user },

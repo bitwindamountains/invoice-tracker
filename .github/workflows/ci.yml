@@ -46,6 +46,7 @@ jobs:
             sleep 2
           done
           exit 1
+      - run: npm run test:demo
       - run: npm run test:integration
       - run: npm run test:e2e
       - run: npm run test:performance
