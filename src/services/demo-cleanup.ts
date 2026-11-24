@@ -30,17 +30,30 @@ export async function deleteDemoWorkspaces(where: Prisma.WorkspaceWhereInput) {
     where: { AND: [where, { demoExpiresAt: { not: null } }] },
     select: { id: true, ownerId: true },
   });
+  let deleted = 0;
   for (const { id: workspaceId, ownerId } of workspaces) {
-    await db.$transaction(async (tx) => {
-      for (const model of DEMO_DELETE_ORDER) {
-        const delegate = tx[(model[0].toLowerCase() + model.slice(1)) as Uncapitalize<typeof model>];
-        await (delegate as unknown as { deleteMany(a: object): Promise<unknown> }).deleteMany({
-          where: { workspaceId },
+    try {
+      await db.$transaction(async (tx) => {
+        for (const model of DEMO_DELETE_ORDER) {
+          const delegate = tx[(model[0].toLowerCase() + model.slice(1)) as Uncapitalize<typeof model>];
+          await (delegate as unknown as { deleteMany(a: object): Promise<unknown> }).deleteMany({
+            where: { workspaceId },
+          });
+        }
+        // Re-assert the guard; no match (gone or no longer demo) rolls everything back.
+        const { count } = await tx.workspace.deleteMany({
+          where: { id: workspaceId, demoExpiresAt: { not: null } },
         });
-      }
-      await tx.workspace.delete({ where: { id: workspaceId } });
-      await tx.user.delete({ where: { id: ownerId } });
-    });
+        if (count === 0) throw new StaleWorkspace();
+        await tx.user.delete({ where: { id: ownerId } });
+      });
+      deleted++;
+    } catch (error) {
+      // A concurrent run (e.g. two evictions of the same workspace) got there first.
+      if (!(error instanceof StaleWorkspace)) throw error;
+    }
   }
-  return workspaces.length;
+  return deleted;
 }
+
+class StaleWorkspace extends Error {}

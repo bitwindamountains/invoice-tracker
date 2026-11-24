@@ -17,16 +17,18 @@ const check = (name: string, fn: () => Promise<void>) => checks.push([name, fn])
 // Creates a user (+ workspace) with a fresh token, runs fn, always deletes them.
 async function withDemoUser(
   demoExpiresAt: Date | null,
-  fn: (token: string) => Promise<void>,
+  fn: (token: string, workspaceId: string) => Promise<void>,
 ) {
   const { token, tokenHash } = newDemoToken();
   const id = randomUUID();
   await db.user.create({
     data: { id, name: "Demo test", email: `demo-${id}@example.test`, demoTokenHash: tokenHash },
   });
-  await db.workspace.create({ data: { name: "Demo test", ownerId: id, demoExpiresAt } });
+  const ws = await db.workspace.create({
+    data: { name: "Demo test", ownerId: id, demoExpiresAt },
+  });
   try {
-    await fn(token);
+    await fn(token, ws.id);
   } finally {
     await db.workspace.deleteMany({ where: { ownerId: id } });
     await db.user.delete({ where: { id } });
@@ -62,12 +64,29 @@ check("DEMO_DELETE_ORDER completeness", async () => {
   assert.deepEqual(new Set(DEMO_DELETE_ORDER), new Set(expected));
   assert.equal(DEMO_DELETE_ORDER.length, expected.length);
 });
-check("real workspaces are untouched", () =>
-  withDemoUser(null, async () => {
-    const ws = await db.workspace.findFirstOrThrow({ orderBy: { createdAt: "desc" } });
-    assert.equal(await deleteDemoWorkspaces({ id: ws.id }), 0);
-    assert.ok(await db.workspace.findUnique({ where: { id: ws.id } }));
+check("real workspaces are untouched, guard cannot be bypassed", () =>
+  withDemoUser(null, async (_token, realId) => {
+    for (const where of [
+      { id: realId },
+      { demoExpiresAt: null },
+      { OR: [{ id: realId }, { demoExpiresAt: null }] },
+    ])
+      assert.equal(await deleteDemoWorkspaces(where), 0);
+    assert.ok(await db.workspace.findUnique({ where: { id: realId } }));
   }));
+check("concurrent cleanup of the same workspace deletes it once", async () => {
+  const id = randomUUID();
+  await db.user.create({ data: { id, name: "Demo test", email: `demo-${id}@example.test` } });
+  const ws = await db.workspace.create({
+    data: { name: "Demo test", ownerId: id, demoExpiresAt: new Date() },
+  });
+  const results = await Promise.all([
+    deleteDemoWorkspaces({ id: ws.id }),
+    deleteDemoWorkspaces({ id: ws.id }),
+  ]);
+  assert.equal(results[0] + results[1], 1);
+  assert.equal(await db.user.count({ where: { id } }), 0);
+});
 check("demo workspace and its owner are deleted", async () => {
   const id = randomUUID();
   await db.user.create({ data: { id, name: "Demo test", email: `demo-${id}@example.test` } });
