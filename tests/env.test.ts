@@ -92,6 +92,10 @@ describe("deployment environment", () => {
         environmentSchema.safeParse({ ...demo, EMAIL_MODE: "resend", RESEND_API_KEY: "x".repeat(20) }).success,
       ).toBe(false);
     });
+    it("requires file email delivery in demo mode", () => {
+      const result = environmentSchema.safeParse({ ...demo, EMAIL_MODE: "resend" });
+      expect(result.error?.issues.map((issue) => issue.path)).toContainEqual(["EMAIL_MODE"]);
+    });
     it("still requires HTTPS and a trusted proxy for a production demo", () => {
       expect(environmentSchema.safeParse({ ...demo, APP_URL: "http://demo.onrender.com" }).success).toBe(false);
       expect(environmentSchema.safeParse({ ...demo, TRUST_PROXY: "false" }).success).toBe(false);
