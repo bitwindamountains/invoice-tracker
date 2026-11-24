@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { getDatabase } from "@/lib/db";
 import { DEMO_LIFETIME_MS, newDemoToken } from "@/lib/demo-session";
 import { getEnvironment } from "@/lib/env";
+import { errorLabel } from "@/lib/error-label";
 import { logEvent } from "@/lib/logger";
 import { deleteDemoWorkspaces } from "./demo-cleanup";
 import { seedDemoWorkspace } from "./demo-seed";
@@ -9,9 +10,6 @@ import { seedDemoWorkspace } from "./demo-seed";
 /** The demo being replaced was already gone (e.g. a concurrent Start over took it): not a free replacement. */
 export class DemoReplacementGone extends Error {}
 
-/** Error name and Prisma code only: messages can carry query input. */
-export const errorLabel = (error: unknown) =>
-  error instanceof Error ? [error.name, (error as { code?: unknown }).code].filter(Boolean).join(":") : "unknown";
 
 export async function deleteDemoForUser(userId: string) {
   await deleteDemoWorkspaces({ ownerId: userId });

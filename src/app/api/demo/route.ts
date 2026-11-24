@@ -5,7 +5,8 @@ import { DEMO_COOKIE, demoCookieOptions, findDemoUser } from "@/lib/demo-session
 import { getEnvironment, isDemoMode } from "@/lib/env";
 import { logEvent } from "@/lib/logger";
 import { takeRateLimit } from "@/lib/rate-limit";
-import { createDemo, DemoReplacementGone, errorLabel } from "@/services/demo";
+import { errorLabel } from "@/lib/error-label";
+import { createDemo, DemoReplacementGone } from "@/services/demo";
 
 const headers = { "Cache-Control": "private, no-store" };
 

@@ -1,6 +1,6 @@
 import type { Instrumentation } from "next";
 import { logEvent } from "@/lib/logger";
-import { errorLabel } from "@/services/demo";
+import { errorLabel } from "@/lib/error-label";
 import { getEnvironment } from "@/lib/env";
 
 export const onRequestError: Instrumentation.onRequestError = async (error, request, context) => {
