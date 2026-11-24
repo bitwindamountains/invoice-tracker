@@ -731,3 +731,8 @@ input[type="checkbox"] { accent-color: var(--brand); }
   .auth-aside { background: var(--rail); border-bottom: 0; }
 }
 @media (max-width: 760px) { .auth-aside > .ambient { display: block; } .auth-aside { padding: 26px 22px; } }
+
+.demo-banner { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px 14px; padding: 6px 16px; background: var(--brand-light); border-bottom: 1px solid var(--border); color: var(--text); font-size: 13px; text-align: center; }
+.demo-banner form { display: contents; }
+.demo-banner-action { background: none; border: 0; padding: 4px 2px; min-height: 28px; font: inherit; font-weight: 650; color: var(--accent); text-decoration: underline; cursor: pointer; }
+.demo-banner-action:disabled { opacity: 0.6; cursor: progress; }

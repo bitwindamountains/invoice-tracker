@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ArrowRight, CalendarClock, CircleCheck, Eye, Send, Wallet } from "lucide-react";
 import { Brand } from "@/components/brand";
+import { DemoCta } from "@/components/demo-banner";
+import { isDemoMode } from "@/lib/env";
 
 const story = [
   { icon: Send, label: "Invoice sent", detail: "Mon 9:12 AM" },
@@ -11,13 +13,16 @@ const story = [
 ];
 
 export default function Home() {
+  const demo = isDemoMode();
   return (
     <div className="landing">
       <header className="site-header">
         <Brand />
-        <Link className="button secondary" href="/login">
-          Sign in <ArrowRight size={16} />
-        </Link>
+        {!demo && (
+          <Link className="button secondary" href="/login">
+            Sign in <ArrowRight size={16} />
+          </Link>
+        )}
       </header>
       <main id="main" className="landing-main">
         <div className="hero-copy">
@@ -27,10 +32,16 @@ export default function Home() {
             <span>a paid invoice.</span>
           </h1>
           <p>A calmer way to follow through. Bring your invoices, client commitments, and payment conversations into one focused workspace.</p>
-          <Link className="button primary hero-cta" href="/register">
-            Create your workspace <ArrowRight size={18} />
-          </Link>
-          <span className="hero-note">Early development preview · Account setup available</span>
+          {demo ? (
+            <form method="post" action="/api/demo">
+              <DemoCta />
+            </form>
+          ) : (
+            <Link className="button primary hero-cta" href="/register">
+              Create your workspace <ArrowRight size={18} />
+            </Link>
+          )}
+          <span className="hero-note">{demo ? "Live demo with sample data · resets after 24 hours" : "Early development preview · Account setup available"}</span>
         </div>
         <section className="preview story-card" aria-label="Illustration of the planned collection workflow">
           <div className="story-head">
