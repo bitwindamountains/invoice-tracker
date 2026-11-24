@@ -13,6 +13,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:demo": "tsx --env-file=.env tests/demo.ts",
     "test:integration": "tsx --env-file=.env tests/integration.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
