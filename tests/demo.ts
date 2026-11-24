@@ -4,6 +4,7 @@ import { getDatabase } from "../src/lib/db";
 import { Prisma } from "../src/generated/prisma/client";
 import { DEMO_DELETE_ORDER, deleteDemoWorkspaces } from "../src/services/demo-cleanup";
 import { findDemoUser, newDemoToken } from "../src/lib/demo-session";
+import { seedDemoWorkspace } from "../src/services/demo-seed";
 
 // Never run against a shared database: these checks create and delete rows.
 const host = new URL(process.env.DATABASE_URL ?? "postgresql://invalid").hostname;
@@ -95,6 +96,60 @@ check("demo workspace and its owner are deleted", async () => {
   });
   assert.equal(await deleteDemoWorkspaces({ id: ws.id }), 1);
   assert.equal(await db.workspace.count({ where: { id: ws.id } }), 0);
+  assert.equal(await db.user.count({ where: { id } }), 0);
+});
+
+check("seed + cleanup", async () => {
+  const id = randomUUID();
+  const now = new Date();
+  await db.user.create({ data: { id, name: "Demo test", email: `demo-${id}@example.test` } });
+  const ws = await db.workspace.create({
+    data: {
+      name: "Demo test",
+      ownerId: id,
+      demoExpiresAt: new Date(now.getTime() + 86_400_000),
+      members: { create: { userId: id, role: "OWNER" } },
+    },
+  });
+  try {
+    await seedDemoWorkspace(id, ws.id, now);
+    const workspaceId = ws.id;
+    const workspace = await db.workspace.findUniqueOrThrow({ where: { id: workspaceId } });
+    assert.ok(workspace.onboardingCompletedAt);
+    const invoices = await db.invoice.findMany({ where: { workspaceId } });
+    const statuses = new Set(invoices.map((invoice) => invoice.status));
+    for (const status of ["DRAFT", "SENT", "PARTIALLY_PAID", "PAID"] as const)
+      assert.ok(statuses.has(status), `missing ${status}`);
+    const today = new Date(`${now.toISOString().slice(0, 10)}T00:00:00.000Z`);
+    const overdue = invoices.filter(
+      (invoice) => invoice.status !== "DRAFT" && invoice.dueDate < today && invoice.balanceDue.gt(0),
+    );
+    assert.ok(overdue.length >= 2, `overdue: ${overdue.length}`);
+    const viewed = await db.invoiceEvent.groupBy({
+      by: ["invoiceId"],
+      where: { workspaceId, type: "PUBLIC_LINK_OPENED" },
+    });
+    assert.ok(viewed.length >= 2, `viewed: ${viewed.length}`);
+    assert.equal(await db.paymentConfirmation.count({ where: { workspaceId, status: "PENDING" } }), 1);
+    assert.ok((await db.paymentPromise.count({ where: { workspaceId } })) >= 1);
+    // Services stamp "now"; the seed must have moved every event into the past.
+    const recent = { workspaceId, createdAt: { gt: new Date(now.getTime() - 12 * 3_600_000) } };
+    assert.equal(await db.invoiceEvent.count({ where: recent }), 0);
+    assert.equal(await db.auditLog.count({ where: recent }), 0);
+    for (const invoice of invoices) {
+      assert.ok(invoice.total.equals(invoice.amountPaid.plus(invoice.balanceDue)), invoice.invoiceNumber);
+      assert.ok(invoice.issueDate <= now, `${invoice.invoiceNumber} issued in the future`);
+    }
+  } finally {
+    assert.equal(await deleteDemoWorkspaces({ id: ws.id }), 1);
+  }
+  for (const model of DEMO_DELETE_ORDER) {
+    const delegate = db[(model[0].toLowerCase() + model.slice(1)) as Uncapitalize<typeof model>];
+    const count = await (delegate as unknown as { count(a: object): Promise<number> }).count({
+      where: { workspaceId: ws.id },
+    });
+    assert.equal(count, 0, model);
+  }
   assert.equal(await db.user.count({ where: { id } }), 0);
 });
 
