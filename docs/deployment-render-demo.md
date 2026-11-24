@@ -14,11 +14,11 @@ There is no second service and no rewrite: the app serves everything from one or
 1. Push the branch to GitHub, then in Render choose **New → Blueprint**, pick the repo and set the blueprint path to `render.demo.yaml`.
 2. If Render asks for a card and declines it, create the resources by hand with the values from the file (same names, Singapore, Free plan):
    - **New → PostgreSQL**: name `invoice-tracker-demo-db`, PostgreSQL 17. Copy its **Internal Database URL**.
-   - **New → Web Service** from this repo: runtime Node, build command `npm ci && npm run build`, start command `npm run db:migrate && npm run start:demo`, health check path `/api/health/ready`. Add every environment variable from the file; set `DATABASE_URL` to the internal URL.
+   - **New → Web Service** from this repo: runtime Node, build command `npm ci --include=dev && npm run build`, start command `npm run db:migrate && npm run start:demo`, health check path `/api/health/ready`. Add every environment variable from the file; set `DATABASE_URL` to the internal URL.
 3. **`DEMO_MODE=true` must be set where the build runs**, not only at start. `next.config.ts` reads it when the headers are built, to send `Referrer-Policy: same-origin`; without it Chrome sends `Origin: null` on the demo form post and the request is refused. Render's environment variables apply to both phases, so just keep it in the service's environment.
 4. If Render gives a different `.onrender.com` name, update `APP_URL` (it must be https) and redeploy.
 
-First deploy: the build needs devDependencies (typescript, prisma, tsx). The blueprint sets `NPM_CONFIG_PRODUCTION=false` so `npm ci` installs them even though Render builds with `NODE_ENV=production`. If you create the service by hand, add that variable, or the build fails with a missing `tsc`/`prisma`.
+The build needs devDependencies (typescript, prisma, tsx), so the build command uses `npm ci --include=dev`; Render builds with `NODE_ENV=production`, which would otherwise skip them.
 
 ## Check after deploying
 
@@ -28,7 +28,7 @@ The service sleeps after about 15 minutes idle, so the first request can take ab
 - On `/`, **Try the live demo** opens a seeded workspace with the "Demo workspace" banner and a non-zero Outstanding total.
 - Create an invoice, send it, open its public link, record a payment, and see it marked Paid.
 - **Start over** in the banner gives a fresh seeded workspace; **Sign out** returns to `/`.
-- **Client IP:** the demo is limited to 3 starts per hour per visitor. From one network start four demos: the fourth should be refused, while another network (mobile data) still works. If every visitor shares one limit, the app is seeing a proxy address; check `TRUST_PROXY` and the Render logs.
+- **Client IP:** the demo is limited to 3 starts per hour per visitor. From one network start four demos: the fourth should be refused, while another network (mobile data) still works. If every visitor shares one limit, the app is seeing a proxy address. Read `demo_forwarded_hops` in the Render logs (logged once per process: the number of `X-Forwarded-For` entries, never the addresses). The app keys on the last entry; if the proxy chain adds a trailing hop of its own, change the hop rule in `clientAddress` (`src/lib/rate-limit.ts`).
 - Look in the logs for `demo_cleanup_failed`. It should not appear.
 
 ## Limits and caveats
