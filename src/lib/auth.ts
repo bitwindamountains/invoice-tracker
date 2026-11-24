@@ -4,14 +4,14 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient, type User as SupabaseUser } from "@supabase/supabase-js";
 import { Prisma } from "@/generated/prisma/client";
 import { getDatabase } from "./db";
-import { getEnvironment } from "./env";
+import { getEnvironment, isDemoMode } from "./env";
 import { sessionCookieOptions, withSessionLifetime } from "./session-cookie";
 
 export async function createSupabase() {
   const environment = getEnvironment();
   const url = environment.NEXT_PUBLIC_SUPABASE_URL;
   const key = environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (environment.DEMO_MODE === "true" || !url || !key) throw new Error("Supabase is not available in demo mode");
+  if (isDemoMode() || !url || !key) throw new Error("Supabase is not available in demo mode");
   const cookieStore = await cookies();
   return createServerClient(
     url,
@@ -39,7 +39,7 @@ export function createSupabaseAdmin() {
   const environment = getEnvironment();
   const url = environment.NEXT_PUBLIC_SUPABASE_URL;
   const key = environment.SUPABASE_SECRET_KEY;
-  if (environment.DEMO_MODE === "true" || !url || !key) throw new Error("Supabase is not available in demo mode");
+  if (isDemoMode() || !url || !key) throw new Error("Supabase is not available in demo mode");
   return createClient(
     url,
     key,

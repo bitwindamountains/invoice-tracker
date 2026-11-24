@@ -39,9 +39,11 @@ export const environmentSchema = z
   .superRefine((value, context) => {
     const demo = value.DEMO_MODE === "true";
     if (demo) {
-      for (const key of ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "SUPABASE_SECRET_KEY", "RESEND_API_KEY"] as const)
+      for (const key of ["SUPABASE_SECRET_KEY", "RESEND_API_KEY"] as const)
         if (value[key])
           context.addIssue({ code: "custom", path: [key], message: "Not allowed in demo mode" });
+      if (value.EMAIL_MODE !== "file")
+        context.addIssue({ code: "custom", path: ["EMAIL_MODE"], message: "Demo mode requires file email delivery" });
     } else {
       for (const key of ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "SUPABASE_SECRET_KEY"] as const)
         if (!value[key])
@@ -63,20 +65,20 @@ export const environmentSchema = z
       if (value.TRUST_PROXY !== "true")
         context.addIssue({ code: "custom", path: ["TRUST_PROXY"], message: "Production requires a trusted proxy that replaces forwarding headers" });
       if (!demo) {
-      if (value.REQUIRE_EMAIL_VERIFICATION !== "true")
-        context.addIssue({
-          code: "custom",
-          path: ["REQUIRE_EMAIL_VERIFICATION"],
-          message: "Production requires verified emails",
-        });
-      if (value.EMAIL_MODE !== "resend")
-        context.addIssue({
-          code: "custom",
-          path: ["EMAIL_MODE"],
-          message: "Local file delivery is forbidden in production",
-        });
-      if (!value.ERROR_MONITOR_URL || !value.ERROR_MONITOR_TOKEN)
-        context.addIssue({ code: "custom", path: ["ERROR_MONITOR_URL"], message: "Production requires a configured error monitor" });
+        if (value.REQUIRE_EMAIL_VERIFICATION !== "true")
+          context.addIssue({
+            code: "custom",
+            path: ["REQUIRE_EMAIL_VERIFICATION"],
+            message: "Production requires verified emails",
+          });
+        if (value.EMAIL_MODE !== "resend")
+          context.addIssue({
+            code: "custom",
+            path: ["EMAIL_MODE"],
+            message: "Local file delivery is forbidden in production",
+          });
+        if (!value.ERROR_MONITOR_URL || !value.ERROR_MONITOR_TOKEN)
+          context.addIssue({ code: "custom", path: ["ERROR_MONITOR_URL"], message: "Production requires a configured error monitor" });
       }
     }
   });
