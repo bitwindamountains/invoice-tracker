@@ -1,6 +1,12 @@
 import { z } from "zod";
 
-export const environmentSchema = z
+// Empty values count as unset: dotenv never overrides a set variable, so `KEY=` is how a run turns one off.
+const emptyAsUnset = (input: unknown) =>
+  input && typeof input === "object"
+    ? Object.fromEntries(Object.entries(input).filter(([, value]) => value !== ""))
+    : input;
+
+const environmentObject = z
   .object({
     NODE_ENV: z
       .enum(["development", "production", "test"])
@@ -13,16 +19,20 @@ export const environmentSchema = z
         "PostgreSQL URL required",
       ),
     APP_URL: z.string().url(),
-    NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
+    NEXT_PUBLIC_SUPABASE_URL: z.string().url().optional(),
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z
       .string()
       .min(20)
       .refine(
         (value) => !value.includes("REPLACE_WITH"),
         "Set the project's publishable key",
-      ),
+      )
+      .optional(),
     // Server-only admin key, used to create auth email links. Never prefix with NEXT_PUBLIC_: that would ship it to browsers.
-    SUPABASE_SECRET_KEY: z.string().min(20),
+    SUPABASE_SECRET_KEY: z.string().min(20).optional(),
+    // Public demo: no Supabase or Resend; sessions are anonymous and per-visitor data is capped.
+    DEMO_MODE: z.enum(["true", "false"]).default("false"),
+    DEMO_MAX_ACTIVE: z.coerce.number().int().min(1).max(200).default(10),
     REQUIRE_EMAIL_VERIFICATION: z.enum(["true", "false"]).default("true"),
     EMAIL_MODE: z.enum(["file", "resend"]).default("file"),
     EMAIL_FROM: z.string().min(3),
@@ -33,7 +43,19 @@ export const environmentSchema = z
     ERROR_MONITOR_TOKEN: z.string().min(20).optional(),
   })
   .superRefine((value, context) => {
-    if (value.EMAIL_MODE === "resend" && !value.RESEND_API_KEY)
+    const demo = value.DEMO_MODE === "true";
+    if (demo) {
+      for (const key of ["SUPABASE_SECRET_KEY", "RESEND_API_KEY"] as const)
+        if (value[key])
+          context.addIssue({ code: "custom", path: [key], message: "Not allowed in demo mode" });
+      if (value.EMAIL_MODE !== "file")
+        context.addIssue({ code: "custom", path: ["EMAIL_MODE"], message: "Demo mode requires file email delivery" });
+    } else {
+      for (const key of ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "SUPABASE_SECRET_KEY"] as const)
+        if (!value[key])
+          context.addIssue({ code: "custom", path: [key], message: "Required" });
+    }
+    if (value.EMAIL_MODE === "resend" && !value.RESEND_API_KEY && !demo)
       context.addIssue({
         code: "custom",
         path: ["RESEND_API_KEY"],
@@ -46,24 +68,28 @@ export const environmentSchema = z
           path: ["APP_URL"],
           message: "Production requires HTTPS",
         });
-      if (value.REQUIRE_EMAIL_VERIFICATION !== "true")
-        context.addIssue({
-          code: "custom",
-          path: ["REQUIRE_EMAIL_VERIFICATION"],
-          message: "Production requires verified emails",
-        });
-      if (value.EMAIL_MODE !== "resend")
-        context.addIssue({
-          code: "custom",
-          path: ["EMAIL_MODE"],
-          message: "Local file delivery is forbidden in production",
-        });
       if (value.TRUST_PROXY !== "true")
         context.addIssue({ code: "custom", path: ["TRUST_PROXY"], message: "Production requires a trusted proxy that replaces forwarding headers" });
-      if (!value.ERROR_MONITOR_URL || !value.ERROR_MONITOR_TOKEN)
-        context.addIssue({ code: "custom", path: ["ERROR_MONITOR_URL"], message: "Production requires a configured error monitor" });
+      if (!demo) {
+        if (value.REQUIRE_EMAIL_VERIFICATION !== "true")
+          context.addIssue({
+            code: "custom",
+            path: ["REQUIRE_EMAIL_VERIFICATION"],
+            message: "Production requires verified emails",
+          });
+        if (value.EMAIL_MODE !== "resend")
+          context.addIssue({
+            code: "custom",
+            path: ["EMAIL_MODE"],
+            message: "Local file delivery is forbidden in production",
+          });
+        if (!value.ERROR_MONITOR_URL || !value.ERROR_MONITOR_TOKEN)
+          context.addIssue({ code: "custom", path: ["ERROR_MONITOR_URL"], message: "Production requires a configured error monitor" });
+      }
     }
   });
+
+export const environmentSchema = z.preprocess(emptyAsUnset, environmentObject);
 
 export function getEnvironment() {
   const result = environmentSchema.safeParse(process.env);
@@ -72,4 +98,8 @@ export function getEnvironment() {
       `Invalid environment: ${result.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ")}`,
     );
   return result.data;
+}
+
+export function isDemoMode() {
+  return getEnvironment().DEMO_MODE === "true";
 }

@@ -1,10 +1,18 @@
 import { createHash } from "node:crypto";
 import { getDatabase } from "@/lib/db";
-import { getEnvironment } from "@/lib/env";
+import { getEnvironment, isDemoMode } from "@/lib/env";
+import { logEvent } from "@/lib/logger";
 
-function clientAddress(request: Request) {
+let hopsLogged = false;
+export function clientAddress(request: Request) {
   if (getEnvironment().TRUST_PROXY !== "true") return "direct";
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const hops = request.headers.get("x-forwarded-for")?.split(",") ?? [];
+  if (isDemoMode() && !hopsLogged) {
+    hopsLogged = true;
+    logEvent("demo_forwarded_hops", { hops: hops.length }); // count only, never the addresses
+  }
+  // The demo host's proxy appends the real client as the last hop; earlier hops are client-controlled.
+  return (isDemoMode() ? hops.at(-1) : hops[0])?.trim() || "unknown";
 }
 export async function takeRateLimit(request: Request, scope: string, discriminator: string, limit = 10, windowSeconds = 60) {
   const identity = createHash("sha256").update(`${scope}\0${clientAddress(request)}\0${discriminator}`).digest("hex");
