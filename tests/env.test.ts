@@ -85,6 +85,11 @@ describe("deployment environment", () => {
       expect(result.success).toBe(true);
       expect(result.data?.DEMO_MAX_ACTIVE).toBe(10);
     });
+    it("treats empty values as unset", () => {
+      expect(environmentSchema.safeParse({ ...demo, SUPABASE_SECRET_KEY: "", RESEND_API_KEY: "" }).success).toBe(true);
+      const real = environmentSchema.safeParse({ ...local, SUPABASE_SECRET_KEY: "" });
+      expect(real.error?.issues.map((issue) => issue.path)).toContainEqual(["SUPABASE_SECRET_KEY"]);
+    });
     it("refuses provider keys in demo mode", () => {
       const secret = environmentSchema.safeParse({ ...demo, SUPABASE_SECRET_KEY: local.SUPABASE_SECRET_KEY });
       expect(secret.error?.issues.map((issue) => issue.path)).toContainEqual(["SUPABASE_SECRET_KEY"]);

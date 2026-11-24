@@ -1,6 +1,12 @@
 import { z } from "zod";
 
-export const environmentSchema = z
+// Empty values count as unset: dotenv never overrides a set variable, so `KEY=` is how a run turns one off.
+const emptyAsUnset = (input: unknown) =>
+  input && typeof input === "object"
+    ? Object.fromEntries(Object.entries(input).filter(([, value]) => value !== ""))
+    : input;
+
+const environmentObject = z
   .object({
     NODE_ENV: z
       .enum(["development", "production", "test"])
@@ -82,6 +88,8 @@ export const environmentSchema = z
       }
     }
   });
+
+export const environmentSchema = z.preprocess(emptyAsUnset, environmentObject);
 
 export function getEnvironment() {
   const result = environmentSchema.safeParse(process.env);

@@ -1,6 +1,6 @@
 import type { Instrumentation } from "next";
 import { logEvent } from "@/lib/logger";
-import { getEnvironment } from "@/lib/env";
+import { getEnvironment, isDemoMode } from "@/lib/env";
 
 export const onRequestError: Instrumentation.onRequestError = async (error, request, context) => {
   const digest = typeof error === "object" && error !== null && "digest" in error ? String(error.digest).slice(0, 128) : undefined;
@@ -12,3 +12,15 @@ export const onRequestError: Instrumentation.onRequestError = async (error, requ
     } catch { logEvent("error_monitor_delivery_failed", { route: context.routePath }); }
   }
 };
+
+// Demo workspaces expire after a day; sweep the stale ones at boot. Never blocks or fails startup.
+export async function register() {
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  try {
+    if (!isDemoMode()) return;
+    const { deleteDemoWorkspaces } = await import("@/services/demo-cleanup");
+    await deleteDemoWorkspaces({ demoExpiresAt: { lt: new Date() } });
+  } catch {
+    logEvent("demo_cleanup_failed");
+  }
+}
