@@ -70,7 +70,7 @@ function QuickCreate() {
   );
 }
 
-export function AppShell({ businessName, userName, counts, children }: { businessName: string; userName: string; counts: Counts; children: React.ReactNode }) {
+export function AppShell({ businessName, userName, counts, demo = false, banner, children }: { businessName: string; userName: string; counts: Counts; demo?: boolean; banner?: React.ReactNode; children: React.ReactNode }) {
   const pathname = usePathname();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -114,10 +114,11 @@ export function AppShell({ businessName, userName, counts, children }: { busines
         <nav className="sidebar-nav sidebar-secondary" aria-label="Workspace">
           {secondaryNav.map((item) => <NavLink key={item.href} item={item} pathname={pathname} counts={counts} />)}
         </nav>
-        <div className="sidebar-foot"><SignOut /></div>
+        <div className="sidebar-foot"><SignOut demo={demo} /></div>
       </aside>
       <div className="shell-main">
         <AmbientBackground variant="quiet" />
+        {banner}
         <header className="topbar">
           <Link className="topbar-brand" href="/app" aria-label="Invoice Tracker dashboard">
             <span className="brand-mark"><ArrowUpRight size={18} strokeWidth={2.5} /></span>
@@ -161,7 +162,7 @@ export function AppShell({ businessName, userName, counts, children }: { busines
           <nav className="sheet-nav" aria-label="More">
             {[...primaryNav.slice(4), ...secondaryNav].map((item) => <NavLink key={item.href} item={item} pathname={pathname} counts={counts} onNavigate={() => setMoreOpen(false)} />)}
           </nav>
-          <SignOut />
+          <SignOut demo={demo} />
         </div>
       </dialog>
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />

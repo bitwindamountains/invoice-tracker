@@ -10,7 +10,8 @@ const config: NextConfig = {
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "DENY" },
-          { key: "Referrer-Policy", value: "no-referrer" },
+          // Demo forms post same-origin; with "no-referrer" browsers send "Origin: null" and hasSameOrigin rejects it.
+          { key: "Referrer-Policy", value: process.env.DEMO_MODE === "true" ? "same-origin" : "no-referrer" },
           { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
           { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
           {
