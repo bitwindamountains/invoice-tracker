@@ -1,7 +1,10 @@
+import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createSupabase, createSupabaseAdmin } from "@/lib/auth";
+import { createSupabase, createSupabaseAdmin, getSession } from "@/lib/auth";
 import { hasSameOrigin } from "@/lib/api-session";
-import { getEnvironment } from "@/lib/env";
+import { DEMO_COOKIE, demoCookieOptions } from "@/lib/demo-session";
+import { getEnvironment, isDemoMode } from "@/lib/env";
+import { deleteDemoForUser } from "@/services/demo";
 import { takeRateLimit } from "@/lib/rate-limit";
 import { sendEmail } from "@/lib/email";
 import { logEvent } from "@/lib/logger";
@@ -35,6 +38,16 @@ export async function POST(
   context: { params: Promise<{ action: string }> },
 ) {
   const { action } = await context.params;
+  // No accounts on the demo host: only sign-out, which deletes the visitor's demo. Never reaches Supabase.
+  if (isDemoMode()) {
+    if (action !== "sign-out") return reply({ error: "Not found." }, 404);
+    if (!hasSameOrigin(request)) return reply({ error: "Request origin was rejected." }, 403);
+    const session = await getSession();
+    if (session) await deleteDemoForUser(session.user.id);
+    const response = NextResponse.json({ ok: true }, { headers });
+    response.cookies.set(DEMO_COOKIE, "", demoCookieOptions(new Date(0)));
+    return response;
+  }
   if (!Object.hasOwn(actions, action)) return reply({ error: "Not found." }, 404);
   if (!hasSameOrigin(request)) return reply({ error: "Request origin was rejected." }, 403);
   const { schema, limit } = actions[action as Action];
