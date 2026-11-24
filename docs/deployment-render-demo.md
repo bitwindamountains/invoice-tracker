@@ -18,6 +18,8 @@ There is no second service and no rewrite: the app serves everything from one or
 3. **`DEMO_MODE=true` must be set where the build runs**, not only at start. `next.config.ts` reads it when the headers are built, to send `Referrer-Policy: same-origin`; without it Chrome sends `Origin: null` on the demo form post and the request is refused. Render's environment variables apply to both phases, so just keep it in the service's environment.
 4. If Render gives a different `.onrender.com` name, update `APP_URL` (it must be https) and redeploy.
 
+First deploy: the build needs devDependencies (typescript, prisma, tsx). The blueprint sets `NPM_CONFIG_PRODUCTION=false` so `npm ci` installs them even though Render builds with `NODE_ENV=production`. If you create the service by hand, add that variable, or the build fails with a missing `tsc`/`prisma`.
+
 ## Check after deploying
 
 The service sleeps after about 15 minutes idle, so the first request can take about a minute.
