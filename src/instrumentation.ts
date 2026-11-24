@@ -1,6 +1,6 @@
 import type { Instrumentation } from "next";
 import { logEvent } from "@/lib/logger";
-import { getEnvironment, isDemoMode } from "@/lib/env";
+import { getEnvironment } from "@/lib/env";
 
 export const onRequestError: Instrumentation.onRequestError = async (error, request, context) => {
   const digest = typeof error === "object" && error !== null && "digest" in error ? String(error.digest).slice(0, 128) : undefined;
@@ -13,14 +13,10 @@ export const onRequestError: Instrumentation.onRequestError = async (error, requ
   }
 };
 
-// Demo workspaces expire after a day; sweep the stale ones at boot. Never blocks or fails startup.
+// Demo workspaces expire after a day; sweep the stale ones at boot. Fire and forget so a slow database never delays readiness.
 export async function register() {
-  if (process.env.NEXT_RUNTIME !== "nodejs") return;
-  try {
-    if (!isDemoMode()) return;
-    const { deleteDemoWorkspaces } = await import("@/services/demo-cleanup");
-    await deleteDemoWorkspaces({ demoExpiresAt: { lt: new Date() } });
-  } catch {
-    logEvent("demo_cleanup_failed");
-  }
+  if (process.env.NEXT_RUNTIME !== "nodejs" || process.env.DEMO_MODE !== "true") return;
+  void import("@/services/demo-cleanup")
+    .then(({ deleteDemoWorkspaces }) => deleteDemoWorkspaces({ demoExpiresAt: { lt: new Date() } }))
+    .catch(() => logEvent("demo_cleanup_failed"));
 }
