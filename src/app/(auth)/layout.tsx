@@ -1,11 +1,14 @@
 import { Brand } from "@/components/brand";
 import { Check } from "lucide-react";
+import { redirect } from "next/navigation";
 import { AmbientBackground } from "@/components/ambient-background";
+import { isDemoMode } from "@/lib/env";
 export default function AuthLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  if (isDemoMode()) redirect("/");
   return (
     <div className="auth-layout">
       <aside className="auth-aside">

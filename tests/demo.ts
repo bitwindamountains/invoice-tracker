@@ -3,8 +3,9 @@ import { randomUUID } from "node:crypto";
 import { getDatabase } from "../src/lib/db";
 import { Prisma } from "../src/generated/prisma/client";
 import { DEMO_DELETE_ORDER, deleteDemoWorkspaces } from "../src/services/demo-cleanup";
-import { findDemoUser, newDemoToken } from "../src/lib/demo-session";
+import { findDemoUser, hashDemoToken, newDemoToken } from "../src/lib/demo-session";
 import { seedDemoWorkspace } from "../src/services/demo-seed";
+import { createDemo, deleteDemoForUser } from "../src/services/demo";
 
 // Never run against a shared database: these checks create and delete rows.
 const host = new URL(process.env.DATABASE_URL ?? "postgresql://invalid").hostname;
@@ -169,6 +170,89 @@ check("seed + cleanup", async () => {
   }
   assert.equal(await db.user.count({ where: { id } }), 0);
 });
+
+// createDemo checks: demo mode with a cap of 2. Each starts from no active demos.
+const demoWorkspaces = { demoExpiresAt: { not: null } } as const;
+async function withDemoCap(fn: () => Promise<void>) {
+  // Demo mode refuses the Supabase secret and Resend key that .env may carry.
+  const demoEnv = { DEMO_MODE: "true", DEMO_MAX_ACTIVE: "2", EMAIL_MODE: "file", SUPABASE_SECRET_KEY: undefined, RESEND_API_KEY: undefined };
+  const saved = Object.fromEntries(Object.keys(demoEnv).map((key) => [key, process.env[key]]));
+  for (const [key, value] of Object.entries(demoEnv))
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  await deleteDemoWorkspaces({});
+  try {
+    await fn();
+  } finally {
+    await deleteDemoWorkspaces({});
+    for (const [key, value] of Object.entries(saved))
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+  }
+}
+const ownerOf = async (token: string) => (await findDemoUser(token))?.id;
+
+check("createDemo evicts the oldest at the cap and keeps the newest", () =>
+  withDemoCap(async () => {
+    const first = await createDemo();
+    const second = await createDemo();
+    const third = await createDemo();
+    assert.equal(await db.workspace.count({ where: demoWorkspaces }), 2);
+    assert.equal(await findDemoUser(first.token), null);
+    assert.ok(await findDemoUser(second.token));
+    assert.ok(await findDemoUser(third.token));
+    const user = await findDemoUser(third.token);
+    assert.equal(user?.name, "Demo Visitor");
+    assert.ok(user?.email.endsWith("@demo.invalid") && user.emailVerified);
+    const workspace = await db.workspace.findUniqueOrThrow({ where: { ownerId: user.id } });
+    assert.equal(workspace.demoExpiresAt?.getTime(), third.expiresAt.getTime());
+    assert.equal(await db.workspaceMember.count({ where: { workspaceId: workspace.id, userId: user.id, role: "OWNER" } }), 1);
+  }));
+check("concurrent createDemo calls at the cap both succeed", () =>
+  withDemoCap(async () => {
+    await createDemo();
+    await createDemo();
+    const [a, b] = await Promise.all([createDemo(), createDemo()]);
+    assert.ok(await findDemoUser(a.token));
+    assert.ok(await findDemoUser(b.token));
+  }));
+check("createDemo replaces the visitor's own demo", () =>
+  withDemoCap(async () => {
+    const old = await createDemo();
+    const replacingUserId = await ownerOf(old.token);
+    assert.ok(replacingUserId);
+    const fresh = await createDemo({ replacingUserId });
+    assert.equal(await findDemoUser(old.token), null);
+    assert.equal(await db.user.count({ where: { id: replacingUserId } }), 0);
+    assert.ok(await findDemoUser(fresh.token));
+  }));
+check("deleteDemoForUser removes the visitor's demo", () =>
+  withDemoCap(async () => {
+    const demo = await createDemo();
+    await deleteDemoForUser((await ownerOf(demo.token))!);
+    assert.equal(await findDemoUser(demo.token), null);
+  }));
+check("expired demos are removed when a demo is created", () =>
+  withDemoCap(async () => {
+    const old = await createDemo({ now: new Date(Date.now() - 2 * 86_400_000) });
+    const userId = (await db.user.findUniqueOrThrow({ where: { demoTokenHash: hashDemoToken(old.token) } })).id;
+    await createDemo();
+    assert.equal(await db.user.count({ where: { id: userId } }), 0);
+  }));
+check("a failed seed leaves no demo behind", () =>
+  withDemoCap(async () => {
+    await createDemo();
+    const before = await db.workspace.count({ where: demoWorkspaces });
+    const users = await db.user.count();
+    await assert.rejects(
+      createDemo({}, async () => {
+        throw new Error("seed failed");
+      }),
+      /seed failed/,
+    );
+    assert.equal(await db.workspace.count({ where: demoWorkspaces }), before);
+    assert.equal(await db.user.count(), users);
+  }));
 
 let failed = 0;
 for (const [name, fn] of checks) {
