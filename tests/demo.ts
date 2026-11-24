@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { getDatabase } from "../src/lib/db";
+import { Prisma } from "../src/generated/prisma/client";
+import { DEMO_DELETE_ORDER, deleteDemoWorkspaces } from "../src/services/demo-cleanup";
 import { findDemoUser, newDemoToken } from "../src/lib/demo-session";
 
 // Never run against a shared database: these checks create and delete rows.
@@ -49,6 +51,33 @@ check("real workspace (no demoExpiresAt) returns null", () =>
   withDemoUser(null, async (token) => {
     assert.equal(await findDemoUser(token), null);
   }));
+
+check("DEMO_DELETE_ORDER completeness", async () => {
+  // Prisma 7 no longer exposes dmmf; the scalar field enums carry the same info.
+  const enums = Prisma as unknown as Record<string, Record<string, string> | undefined>;
+  const expected = Object.values(Prisma.ModelName).filter(
+    (name) => name !== "Workspace" && enums[`${name}ScalarFieldEnum`]?.workspaceId,
+  );
+  assert.ok(expected.length > 10);
+  assert.deepEqual(new Set(DEMO_DELETE_ORDER), new Set(expected));
+  assert.equal(DEMO_DELETE_ORDER.length, expected.length);
+});
+check("real workspaces are untouched", () =>
+  withDemoUser(null, async () => {
+    const ws = await db.workspace.findFirstOrThrow({ orderBy: { createdAt: "desc" } });
+    assert.equal(await deleteDemoWorkspaces({ id: ws.id }), 0);
+    assert.ok(await db.workspace.findUnique({ where: { id: ws.id } }));
+  }));
+check("demo workspace and its owner are deleted", async () => {
+  const id = randomUUID();
+  await db.user.create({ data: { id, name: "Demo test", email: `demo-${id}@example.test` } });
+  const ws = await db.workspace.create({
+    data: { name: "Demo test", ownerId: id, demoExpiresAt: new Date() },
+  });
+  assert.equal(await deleteDemoWorkspaces({ id: ws.id }), 1);
+  assert.equal(await db.workspace.count({ where: { id: ws.id } }), 0);
+  assert.equal(await db.user.count({ where: { id } }), 0);
+});
 
 let failed = 0;
 for (const [name, fn] of checks) {
