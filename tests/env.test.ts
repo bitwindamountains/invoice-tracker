@@ -66,4 +66,40 @@ describe("deployment environment", () => {
         ERROR_MONITOR_TOKEN: "test-monitor-token-1234567890",
       }).success,
     ).toBe(true));
+  it("keeps Supabase keys required in real mode", () =>
+    expect(
+      environmentSchema.safeParse({ ...local, SUPABASE_SECRET_KEY: undefined }).success,
+    ).toBe(false));
+  describe("demo mode", () => {
+    const demo = {
+      NODE_ENV: "production",
+      DATABASE_URL: local.DATABASE_URL,
+      APP_URL: "https://demo.onrender.com",
+      DEMO_MODE: "true",
+      EMAIL_MODE: "file",
+      EMAIL_FROM: "Demo <noreply@example.com>",
+      TRUST_PROXY: "true",
+    };
+    it("accepts a demo environment with no Supabase or Resend keys", () => {
+      const result = environmentSchema.safeParse(demo);
+      expect(result.success).toBe(true);
+      expect(result.data?.DEMO_MAX_ACTIVE).toBe(10);
+    });
+    it("refuses provider keys in demo mode", () => {
+      const secret = environmentSchema.safeParse({ ...demo, SUPABASE_SECRET_KEY: local.SUPABASE_SECRET_KEY });
+      expect(secret.error?.issues.map((issue) => issue.path)).toContainEqual(["SUPABASE_SECRET_KEY"]);
+      expect(
+        environmentSchema.safeParse({ ...demo, EMAIL_MODE: "resend", RESEND_API_KEY: "x".repeat(20) }).success,
+      ).toBe(false);
+    });
+    it("still requires HTTPS and a trusted proxy for a production demo", () => {
+      expect(environmentSchema.safeParse({ ...demo, APP_URL: "http://demo.onrender.com" }).success).toBe(false);
+      expect(environmentSchema.safeParse({ ...demo, TRUST_PROXY: "false" }).success).toBe(false);
+    });
+    it("bounds DEMO_MAX_ACTIVE", () => {
+      expect(environmentSchema.safeParse({ ...demo, DEMO_MAX_ACTIVE: "0" }).success).toBe(false);
+      expect(environmentSchema.safeParse({ ...demo, DEMO_MAX_ACTIVE: "201" }).success).toBe(false);
+      expect(environmentSchema.safeParse({ ...demo, DEMO_MAX_ACTIVE: "25" }).data?.DEMO_MAX_ACTIVE).toBe(25);
+    });
+  });
 });
