@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { getEnvironment } from "@/lib/env";
+import { getEnvironment, isDemoMode } from "@/lib/env";
 import { sessionCookieOptions, withSessionLifetime } from "@/lib/session-cookie";
 
 type CookieWrite = { name: string; value: string; options: { maxAge?: number } };
@@ -12,9 +12,12 @@ async function refreshSession(request: NextRequest) {
   if (!request.cookies.getAll().some((cookie) => cookie.name.startsWith("sb-")))
     return { writes, cacheHeaders };
   const environment = getEnvironment();
+  const url = environment.NEXT_PUBLIC_SUPABASE_URL;
+  const key = environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !key) return { writes, cacheHeaders };
   const supabase = createServerClient(
-    environment.NEXT_PUBLIC_SUPABASE_URL,
-    environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    url,
+    key,
     {
       cookieOptions: sessionCookieOptions,
       cookies: {
@@ -32,7 +35,7 @@ async function refreshSession(request: NextRequest) {
 }
 
 export async function proxy(request: NextRequest) {
-  const session = await refreshSession(request);
+  const session = isDemoMode() ? { writes: [], cacheHeaders: {} } : await refreshSession(request);
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const development = process.env.NODE_ENV !== "production";
   const policy = `default-src 'self'; script-src 'self' 'nonce-${nonce}' ${development ? "'unsafe-eval'" : ""}; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' ${development ? "ws: wss:" : ""}; worker-src 'self'; manifest-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'${development ? "" : "; upgrade-insecure-requests"}`;

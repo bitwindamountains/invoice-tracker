@@ -1,6 +1,7 @@
 import { ZodError } from "zod";
 import { getSession } from "@/lib/auth";
 import { hasSameOrigin } from "@/lib/api-session";
+import { isDemoMode } from "@/lib/env";
 import { logEvent } from "@/lib/logger";
 import { ensurePersonalWorkspace } from "@/services/workspace";
 import { InvalidLogo, saveBusinessProfile } from "@/services/business-profile";
@@ -43,6 +44,12 @@ export async function POST(request: Request) {
         { status: 400, headers },
       );
     }
+    // No file storage from strangers on the demo host.
+    if (isDemoMode() && (body as { logoDataUrl?: unknown } | null)?.logoDataUrl != null)
+      return Response.json(
+        { error: "Logo uploads are off in the demo" },
+        { status: 400, headers },
+      );
     const workspace = await ensurePersonalWorkspace(session.user);
     await saveBusinessProfile(session.user.id, workspace.id, body);
     return Response.json({ ok: true }, { headers });

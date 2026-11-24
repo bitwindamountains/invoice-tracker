@@ -27,3 +27,6 @@ output/
 
 # Local Impeccable design-tool state
 .impeccable/
+
+# Playwright MCP output
+.playwright-mcp/

@@ -1,5 +1,9 @@
 # Implementation status — 2026-10-13
 
+## Public demo (2026-11-24)
+
+`DEMO_MODE=true` serves a throwaway "Try the live demo" workspace per visitor with no Supabase or Resend. Startup removes expired demo workspaces (`src/instrumentation.ts`). `render.demo.yaml` and `docs/deployment-render-demo.md` describe the free Render deploy (one Node service plus a free Postgres); the deploy itself is the owner's step after merge. `tests/e2e/demo.spec.ts` covers start, invoice, send, public link, payment, Start over and sign-out; run it locally (not in CI), see the guide.
+
 ## 2026-10-13: Supabase database and Supabase Auth
 
 - **Database:** runs on the shared Supabase project `tfkazskwrarwbjdtlqed` in its own `invoicetracker` schema, owned by a dedicated `invoicetracker` login (search path and 30 s statement timeout set on the role), following the same pattern as the `rentflow` schema. Every table has row-level security enabled with no policies, so the Data API cannot reach it; the app connects as the owner through the Session pooler. `src/lib/db.ts` passes `?schema=` from `DATABASE_URL` to the Prisma pg adapter, which otherwise ignores it.

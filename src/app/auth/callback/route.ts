@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { createSupabase } from "@/lib/auth";
-import { getEnvironment } from "@/lib/env";
+import { getEnvironment, isDemoMode } from "@/lib/env";
 
 // Landing point for Supabase email links (sign-up confirmation, password reset).
 export async function GET(request: Request) {
+  if (isDemoMode()) return NextResponse.redirect(new URL("/", getEnvironment().APP_URL));
   const url = new URL(request.url);
   // APP_URL, not request.url: in development Next reports localhost even when the browser uses 127.0.0.1.
   const base = getEnvironment().APP_URL;

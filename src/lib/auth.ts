@@ -4,15 +4,19 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient, type User as SupabaseUser } from "@supabase/supabase-js";
 import { Prisma } from "@/generated/prisma/client";
 import { getDatabase } from "./db";
-import { getEnvironment } from "./env";
+import { DEMO_COOKIE, findDemoUser } from "./demo-session";
+import { getEnvironment, isDemoMode } from "./env";
 import { sessionCookieOptions, withSessionLifetime } from "./session-cookie";
 
 export async function createSupabase() {
   const environment = getEnvironment();
+  const url = environment.NEXT_PUBLIC_SUPABASE_URL;
+  const key = environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (isDemoMode() || !url || !key) throw new Error("Supabase is not available in demo mode");
   const cookieStore = await cookies();
   return createServerClient(
-    environment.NEXT_PUBLIC_SUPABASE_URL,
-    environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    url,
+    key,
     {
       cookieOptions: sessionCookieOptions,
       cookies: {
@@ -34,9 +38,12 @@ export async function createSupabase() {
 // Admin client (secret key) for server-side account creation; it bypasses RLS, so never expose it.
 export function createSupabaseAdmin() {
   const environment = getEnvironment();
+  const url = environment.NEXT_PUBLIC_SUPABASE_URL;
+  const key = environment.SUPABASE_SECRET_KEY;
+  if (isDemoMode() || !url || !key) throw new Error("Supabase is not available in demo mode");
   return createClient(
-    environment.NEXT_PUBLIC_SUPABASE_URL,
-    environment.SUPABASE_SECRET_KEY,
+    url,
+    key,
     { auth: { persistSession: false, autoRefreshToken: false } },
   );
 }
@@ -80,6 +87,10 @@ async function syncUser(user: SupabaseUser & { email: string }) {
 // getUser() asks Supabase Auth to validate the token, unlike reading the cookie alone.
 // cache() shares that round trip between the layout and page of one render.
 export const getSession = cache(async () => {
+  if (isDemoMode()) {
+    const user = await findDemoUser((await cookies()).get(DEMO_COOKIE)?.value);
+    return user ? { user } : null;
+  }
   const supabase = await createSupabase();
   const {
     data: { user },

@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
-export function SignOut() {
+export function SignOut({ demo = false }: { demo?: boolean }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -17,7 +17,7 @@ export function SignOut() {
           try {
             const response = await fetch("/api/auth/sign-out", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
             if (!response.ok) throw new Error("Sign out failed");
-            router.replace("/login");
+            router.replace(demo ? "/" : "/login");
             router.refresh();
           } catch {
             setFailed(true);
