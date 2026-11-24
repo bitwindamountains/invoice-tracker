@@ -12,11 +12,12 @@ There is no second service and no rewrite: the app serves everything from one or
 ## Deploy
 
 1. Push the branch to GitHub, then in Render choose **New → Blueprint**, pick the repo and set the blueprint path to `render.demo.yaml`.
-2. If Render asks for a card and declines it, create the resources by hand with the values from the file (same names, Singapore, Free plan):
+2. **Render allows one free database per workspace.** If another project already uses it (as rentflow's `rentflow-demo-db` does on the owner's account), create a separate database inside that instance instead: `CREATE DATABASE invoice_tracker_demo;` over its external URL, then set the web service's `DATABASE_URL` to the instance's internal URL with the path changed to `/invoice_tracker_demo`. The other app's database is untouched, but both share 1 GB and the instance's 30-day expiry. This is how the live demo runs.
+3. If Render asks for a card and declines it, create the resources by hand with the values from the file (same names, Singapore, Free plan):
    - **New → PostgreSQL**: name `invoice-tracker-demo-db`, PostgreSQL 17. Copy its **Internal Database URL**.
    - **New → Web Service** from this repo: runtime Node, build command `npm ci --include=dev && npm run build`, start command `npm run db:migrate && npm run start:demo`, health check path `/api/health/ready`. Add every environment variable from the file; set `DATABASE_URL` to the internal URL.
-3. **`DEMO_MODE=true` must be set where the build runs**, not only at start. `next.config.ts` reads it when the headers are built, to send `Referrer-Policy: same-origin`; without it Chrome sends `Origin: null` on the demo form post and the request is refused. Render's environment variables apply to both phases, so just keep it in the service's environment.
-4. If Render gives a different `.onrender.com` name, update `APP_URL` (it must be https) and redeploy.
+4. **`DEMO_MODE=true` must be set where the build runs**, not only at start. `next.config.ts` reads it when the headers are built, to send `Referrer-Policy: same-origin`; without it Chrome sends `Origin: null` on the demo form post and the request is refused. Render's environment variables apply to both phases, so just keep it in the service's environment.
+5. If Render gives a different `.onrender.com` name, update `APP_URL` (it must be https) and redeploy.
 
 The build needs devDependencies (typescript, prisma, tsx), so the build command uses `npm ci --include=dev`; Render builds with `NODE_ENV=production`, which would otherwise skip them.
 
@@ -28,7 +29,7 @@ The service sleeps after about 15 minutes idle, so the first request can take ab
 - On `/`, **Try the live demo** opens a seeded workspace with the "Demo workspace" banner and a non-zero Outstanding total.
 - Create an invoice, send it, open its public link, record a payment, and see it marked Paid.
 - **Start over** in the banner gives a fresh seeded workspace; **Sign out** returns to `/`.
-- **Client IP:** the demo is limited to 3 starts per hour per visitor. From one network start four demos: the fourth should be refused, while another network (mobile data) still works. If every visitor shares one limit, the app is seeing a proxy address. Read `demo_forwarded_hops` in the Render logs (logged once per process: the number of `X-Forwarded-For` entries, never the addresses). The app keys on the last entry; if the proxy chain adds a trailing hop of its own, change the hop rule in `clientAddress` (`src/lib/rate-limit.ts`).
+- **Client IP:** the demo is limited to 3 starts per hour per visitor. On Render the app keys on `True-Client-IP`, which Render's Cloudflare edge sets to the visitor and overwrites if the client sends one. `X-Forwarded-For` there ends in proxy hops (3 entries, the last not the visitor), so it is only a fallback. `demo_forwarded_hops` in the logs (once per process) shows the hop count and whether `True-Client-IP` arrived, never the addresses. If `trueClientIp` is false, every visitor shares one limit: fix `clientAddress` (`src/lib/rate-limit.ts`).
 - Look in the logs for `demo_cleanup_failed`. It should not appear.
 
 ## Limits and caveats

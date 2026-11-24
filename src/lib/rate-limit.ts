@@ -7,12 +7,15 @@ let hopsLogged = false;
 export function clientAddress(request: Request) {
   if (getEnvironment().TRUST_PROXY !== "true") return "direct";
   const hops = request.headers.get("x-forwarded-for")?.split(",") ?? [];
-  if (isDemoMode() && !hopsLogged) {
+  if (!isDemoMode()) return hops[0]?.trim() || "unknown";
+  // Render's Cloudflare edge sets True-Client-IP to the visitor and overwrites any value the client sent.
+  // Its X-Forwarded-For ends in proxy hops (every visitor would share one limit), so it is only a fallback.
+  const trueClient = request.headers.get("true-client-ip")?.trim();
+  if (!hopsLogged) {
     hopsLogged = true;
-    logEvent("demo_forwarded_hops", { hops: hops.length }); // count only, never the addresses
+    logEvent("demo_forwarded_hops", { hops: hops.length, trueClientIp: Boolean(trueClient) }); // never the addresses
   }
-  // The demo host's proxy appends the real client as the last hop; earlier hops are client-controlled.
-  return (isDemoMode() ? hops.at(-1) : hops[0])?.trim() || "unknown";
+  return trueClient || hops.at(-1)?.trim() || "unknown";
 }
 export async function takeRateLimit(request: Request, scope: string, discriminator: string, limit = 10, windowSeconds = 60) {
   const identity = createHash("sha256").update(`${scope}\0${clientAddress(request)}\0${discriminator}`).digest("hex");
