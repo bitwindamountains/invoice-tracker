@@ -36,6 +36,10 @@ Invoice and reminder emails are still sent by the app. With `EMAIL_MODE=file` th
 
 No demo users or financial seed records are created. Automated tests create unique disposable accounts and remove those accounts after execution.
 
+## Public demo
+
+A throwaway "Try the live demo" mode (`DEMO_MODE=true`) gives each visitor a seeded workspace with no sign-up, Supabase or email provider. Live demo: _link to be added after the first Render deploy_. Deploy and local-run steps are in [docs/deployment-render-demo.md](docs/deployment-render-demo.md); the blueprint is `render.demo.yaml`.
+
 ## Checks
 
 With the database and development server running:
