@@ -112,7 +112,9 @@ check("seed + cleanup", async () => {
     },
   });
   try {
+    const started = performance.now();
     await seedDemoWorkspace(id, ws.id, now);
+    console.log(`seed took ${Math.round(performance.now() - started)}ms`);
     const workspaceId = ws.id;
     const workspace = await db.workspace.findUniqueOrThrow({ where: { id: workspaceId } });
     assert.ok(workspace.onboardingCompletedAt);
@@ -134,8 +136,23 @@ check("seed + cleanup", async () => {
     assert.ok((await db.paymentPromise.count({ where: { workspaceId } })) >= 1);
     // Services stamp "now"; the seed must have moved every event into the past.
     const recent = { workspaceId, createdAt: { gt: new Date(now.getTime() - 12 * 3_600_000) } };
-    assert.equal(await db.invoiceEvent.count({ where: recent }), 0);
-    assert.equal(await db.auditLog.count({ where: recent }), 0);
+    for (const model of [
+      "payment", "paymentPromise", "paymentConfirmation", "invoiceDelivery", "expense", "client",
+      "productService", "invoiceItem", "invoice", "invoiceEvent", "auditLog",
+    ] as const) {
+      const delegate = db[model] as unknown as { count(a: object): Promise<number> };
+      assert.equal(await delegate.count({ where: recent }), 0, `${model} still stamped now`);
+    }
+    for (const invoice of invoices.filter((item) => item.status !== "DRAFT")) {
+      assert.ok(invoice.sentAt && invoice.sentAt < now, `${invoice.invoiceNumber} sentAt`);
+      if (invoice.status === "PAID")
+        assert.ok(invoice.paidAt && invoice.paidAt > invoice.sentAt, `${invoice.invoiceNumber} paidAt`);
+    }
+    assert.equal(invoices.length, 10);
+    assert.equal(invoices.filter((invoice) => invoice.status === "PAID").length, 2);
+    assert.equal(invoices.filter((invoice) => invoice.status === "PARTIALLY_PAID").length, 1);
+    assert.equal(await db.client.count({ where: { workspaceId } }), 6);
+    assert.equal(await db.expense.count({ where: { workspaceId } }), 8);
     for (const invoice of invoices) {
       assert.ok(invoice.total.equals(invoice.amountPaid.plus(invoice.balanceDue)), invoice.invoiceNumber);
       assert.ok(invoice.issueDate <= now, `${invoice.invoiceNumber} issued in the future`);

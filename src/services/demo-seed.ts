@@ -65,7 +65,7 @@ const expenses: [string, string, string, string, number][] = [
 
 /**
  * Fills a fresh demo workspace with a believable studio's books, through the real services.
- * Services stamp "now", so after each call only timestamp columns are moved into the past.
+ * Services stamp "now", so afterwards only timestamp columns are moved into the past.
  */
 export async function seedDemoWorkspace(userId: string, workspaceId: string, now = new Date()) {
   const db = getDatabase();
@@ -73,23 +73,8 @@ export async function seedDemoWorkspace(userId: string, workspaceId: string, now
   // Every backdated time is at least a day old, so "created in the last 12 hours" means "not yet backdated".
   const at = (daysAgo: number, hour = 10) =>
     new Date(new Date(`${day(-daysAgo)}T00:00:00.000Z`).getTime() + (hour - 8) * 3_600_000); // Manila is UTC+8
-  const backdate = async (when: Date) => {
-    const where = { workspaceId, createdAt: { gt: new Date(Date.now() - 12 * 3_600_000) } };
-    const data = { createdAt: when };
-    await db.$transaction([
-      db.auditLog.updateMany({ where, data }),
-      db.client.updateMany({ where, data }),
-      db.productService.updateMany({ where, data }),
-      db.invoice.updateMany({ where, data }),
-      db.invoiceItem.updateMany({ where, data }),
-      db.invoiceEvent.updateMany({ where, data }),
-      db.invoiceDelivery.updateMany({ where, data }),
-      db.payment.updateMany({ where, data }),
-      db.paymentPromise.updateMany({ where, data }),
-      db.paymentConfirmation.updateMany({ where, data }),
-      db.expense.updateMany({ where, data }),
-    ]);
-  };
+  // Rows still stamped by a service, not yet backdated.
+  const fresh = () => ({ workspaceId, createdAt: { gt: new Date(Date.now() - 12 * 3_600_000) } });
 
   const setupAt = at(95);
   await saveBusinessProfile(userId, workspaceId, {
@@ -122,7 +107,6 @@ export async function seedDemoWorkspace(userId: string, workspaceId: string, now
       { name: "Bank transfer", accountName: "Lumen & Line Creative Services", accountReference: "BPI 1234-5678-90", notes: "", enabled: true },
     ],
   });
-  await db.workspace.update({ where: { id: workspaceId }, data: { onboardingCompletedAt: setupAt } });
   await ensureReminderRules(workspaceId);
   const categories = await ensureExpenseCategories(workspaceId);
   const clientIds: string[] = [];
@@ -135,7 +119,12 @@ export async function seedDemoWorkspace(userId: string, workspaceId: string, now
     );
   for (const [name, description, price, unit] of catalog)
     await createCatalogItem(userId, workspaceId, { name, description, price, unit, taxable: true });
-  await backdate(setupAt);
+  await db.$transaction([
+    db.workspace.update({ where: { id: workspaceId }, data: { onboardingCompletedAt: setupAt } }),
+    db.auditLog.updateMany({ where: fresh(), data: { createdAt: setupAt } }),
+    db.client.updateMany({ where: fresh(), data: { createdAt: setupAt } }),
+    db.productService.updateMany({ where: fresh(), data: { createdAt: setupAt } }),
+  ]);
 
   const paymentInstructions = "GCash — Lia Navarro — 0917 555 0142\nBank transfer — Lumen & Line Creative Services — BPI 1234-5678-90";
   for (const [clientIndex, issuedDaysAgo, terms, lines, scenario] of invoices) {
@@ -153,54 +142,80 @@ export async function seedDemoWorkspace(userId: string, workspaceId: string, now
         unitPrice: catalog[item][2], discountType: "NONE", discountValue: "0", taxRate: "12",
       })),
     });
+    const invoiceId = invoice.id;
     const issuedAt = at(issuedDaysAgo, 9);
-    await backdate(issuedAt);
-    if (scenario.kind === "draft") continue;
+    // Collected while the services run, then applied in one batch per invoice.
+    const eventTimes: [string[], Date][] = [];
+    let paidAt: Date | undefined;
+    let promisedAt: Date | undefined;
+    let confirmedAt: Date | undefined;
 
-    const { publicUrl } = await issueAndSendInvoice(userId, workspaceId, invoice.id, {
-      to: invoice.clientEmail,
-      subject: `Invoice ${invoice.invoiceNumber} from Lumen & Line Studio`,
-      message: `Hi ${invoice.clientName.split(" ")[0]},\n\nPlease find invoice ${invoice.invoiceNumber} attached.`,
-      version: invoice.version,
-    });
-    await db.invoice.update({ where: { id: invoice.id }, data: { sentAt: issuedAt, issuedAt, emailSentAt: issuedAt } });
-    await db.invoiceDelivery.updateMany({ where: { invoiceId: invoice.id }, data: { attemptedAt: issuedAt, sentAt: issuedAt } });
-    await backdate(issuedAt);
-    const token = new URL(publicUrl).pathname.split("/").pop()!;
-    const tokenHash = hashToken(token);
+    if (scenario.kind !== "draft") {
+      const { delivered, publicUrl } = await issueAndSendInvoice(userId, workspaceId, invoiceId, {
+        to: invoice.clientEmail,
+        subject: `Invoice ${invoice.invoiceNumber} from Lumen & Line Studio`,
+        message: `Hi ${invoice.clientName.split(" ")[0]},\n\nPlease find invoice ${invoice.invoiceNumber} attached.`,
+        version: invoice.version,
+      });
+      if (!delivered) throw new Error(`Demo seed: sending ${invoice.invoiceNumber} failed`);
+      eventTimes.push([["INVOICE_ISSUED", "EMAIL_SENT"], issuedAt]);
+      const token = new URL(publicUrl).pathname.split("/").pop()!;
+      const tokenHash = hashToken(token);
 
-    if (scenario.kind === "viewed" || scenario.kind === "promise") {
-      await getPublicInvoice(token);
-      await backdate(at(scenario.viewedDaysAgo, 14));
+      if (scenario.kind === "viewed" || scenario.kind === "promise") {
+        await getPublicInvoice(token);
+        eventTimes.push([["PUBLIC_LINK_OPENED"], at(scenario.viewedDaysAgo, 14)]);
+      }
+      if (scenario.kind === "promise") {
+        await submitPaymentPromise(tokenHash, { promisedFor: day(scenario.promisedInDays), note: "Releasing payment after our board signs off." });
+        promisedAt = at(scenario.viewedDaysAgo, 15);
+        eventTimes.push([["PAYMENT_PROMISED"], promisedAt]);
+      }
+      if (scenario.kind === "paid" || scenario.kind === "partial") {
+        const amount = scenario.kind === "paid" ? invoice.total : invoice.total.div(2).toDecimalPlaces(2);
+        await recordPayment(userId, workspaceId, invoiceId, {
+          amount: amount.toFixed(2), method: scenario.kind === "paid" ? "Bank transfer" : "GCash",
+          reference: `REF-${invoice.invoiceNumber}`, paidAt: day(-scenario.paidDaysAgo), note: "",
+        });
+        paidAt = at(scenario.paidDaysAgo, 16);
+        eventTimes.push([["PAYMENT_RECORDED", "PAYMENT_COMPLETED"], paidAt]);
+      }
+      if (scenario.kind === "confirm") {
+        await submitPaymentConfirmation(tokenHash, {
+          amount: invoice.total.toFixed(2), method: "GCash", reference: "GC-7781-2034",
+          paidAt: day(-scenario.submittedDaysAgo), message: "Paid in full via GCash, receipt attached.", idempotencyKey: randomUUID(),
+        });
+        confirmedAt = at(scenario.submittedDaysAgo, 11);
+        eventTimes.push([["PAYMENT_CONFIRMATION_SUBMITTED"], confirmedAt]);
+      }
     }
-    if (scenario.kind === "promise") {
-      await submitPaymentPromise(tokenHash, { promisedFor: day(scenario.promisedInDays), note: "Releasing payment after our board signs off." });
-      await backdate(at(scenario.viewedDaysAgo, 15));
-    }
-    if (scenario.kind === "paid" || scenario.kind === "partial") {
-      const amount = scenario.kind === "paid" ? invoice.total : invoice.total.div(2).toDecimalPlaces(2);
-      await recordPayment(userId, workspaceId, invoice.id, {
-        amount: amount.toFixed(2), method: scenario.kind === "paid" ? "Bank transfer" : "GCash",
-        reference: `REF-${invoice.invoiceNumber}`, paidAt: day(-scenario.paidDaysAgo), note: "",
-      });
-      const paidAt = at(scenario.paidDaysAgo, 16);
-      if (scenario.kind === "paid") await db.invoice.update({ where: { id: invoice.id }, data: { paidAt } });
-      await backdate(paidAt);
-    }
-    if (scenario.kind === "confirm") {
-      await submitPaymentConfirmation(tokenHash, {
-        amount: invoice.total.toFixed(2), method: "GCash", reference: "GC-7781-2034",
-        paidAt: day(-scenario.submittedDaysAgo), message: "Paid in full via GCash, receipt attached.", idempotencyKey: randomUUID(),
-      });
-      await backdate(at(scenario.submittedDaysAgo, 11));
-    }
+
+    const sent = scenario.kind === "draft" ? {} : { sentAt: issuedAt, issuedAt, emailSentAt: issuedAt };
+    const byInvoice = { workspaceId, invoiceId };
+    await db.$transaction([
+      db.invoice.update({ where: { id: invoiceId }, data: { createdAt: issuedAt, ...sent, ...(scenario.kind === "paid" ? { paidAt } : {}) } }),
+      db.invoiceItem.updateMany({ where: byInvoice, data: { createdAt: issuedAt } }),
+      db.auditLog.updateMany({ where: { ...fresh(), action: { startsWith: "INVOICE_" } }, data: { createdAt: issuedAt } }),
+      ...eventTimes.map(([types, createdAt]) => db.invoiceEvent.updateMany({ where: { ...byInvoice, type: { in: types } }, data: { createdAt } })),
+      ...(scenario.kind === "draft" ? [] : [db.invoiceDelivery.updateMany({ where: byInvoice, data: { createdAt: issuedAt, attemptedAt: issuedAt, sentAt: issuedAt } })]),
+      ...(paidAt ? [
+        db.payment.updateMany({ where: byInvoice, data: { createdAt: paidAt } }),
+        db.auditLog.updateMany({ where: { ...fresh(), action: "PAYMENT_RECORDED" }, data: { createdAt: paidAt } }),
+      ] : []),
+      ...(promisedAt ? [db.paymentPromise.updateMany({ where: byInvoice, data: { createdAt: promisedAt } })] : []),
+      ...(confirmedAt ? [db.paymentConfirmation.updateMany({ where: byInvoice, data: { createdAt: confirmedAt } })] : []),
+    ]);
   }
 
   for (const [category, vendor, description, amount, daysAgo] of expenses) {
-    await createExpense(userId, workspaceId, {
+    const expense = await createExpense(userId, workspaceId, {
       categoryId: categories.find((item) => item.name === category)!.id,
       vendor, description, amount, currency: "PHP", incurredOn: day(-daysAgo), reference: "", notes: "",
     });
-    await backdate(at(daysAgo, 12));
+    const createdAt = at(daysAgo, 12);
+    await db.$transaction([
+      db.expense.update({ where: { id: expense.id }, data: { createdAt } }),
+      db.auditLog.updateMany({ where: fresh(), data: { createdAt } }),
+    ]);
   }
 }
