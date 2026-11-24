@@ -1,10 +1,16 @@
 import { createHash } from "node:crypto";
 import { getDatabase } from "@/lib/db";
 import { getEnvironment, isDemoMode } from "@/lib/env";
+import { logEvent } from "@/lib/logger";
 
+let hopsLogged = false;
 export function clientAddress(request: Request) {
   if (getEnvironment().TRUST_PROXY !== "true") return "direct";
   const hops = request.headers.get("x-forwarded-for")?.split(",") ?? [];
+  if (isDemoMode() && !hopsLogged) {
+    hopsLogged = true;
+    logEvent("demo_forwarded_hops", { hops: hops.length }); // count only, never the addresses
+  }
   // The demo host's proxy appends the real client as the last hop; earlier hops are client-controlled.
   return (isDemoMode() ? hops.at(-1) : hops[0])?.trim() || "unknown";
 }

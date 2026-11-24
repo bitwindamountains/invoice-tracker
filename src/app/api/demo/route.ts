@@ -14,8 +14,8 @@ export async function POST(request: Request) {
   if (!isDemoMode()) return NextResponse.json({ error: "Not found." }, { status: 404, headers });
   if (!hasSameOrigin(request))
     return NextResponse.json({ error: "Request origin was rejected." }, { status: 403, headers });
-  const rateLimited = async () => {
-    const rate = await takeRateLimit(request, "demo", "", 3, 3600);
+  const rateLimited = async (scope = "demo", limit = 3) => {
+    const rate = await takeRateLimit(request, scope, "", limit, 3600);
     return rate.allowed
       ? null
       : NextResponse.json(
@@ -24,14 +24,18 @@ export async function POST(request: Request) {
         );
   };
   try {
-    // A visitor with a live demo is starting over: replace it, outside the rate limit.
+    // A visitor with a live demo is starting over: replace it under its own, looser limit (each replacement is a full reseed).
     // If that demo is already gone (a concurrent replay of the cookie), fall back to a rate-limited new demo.
     const current = await findDemoUser((await cookies()).get(DEMO_COOKIE)?.value);
     let demo;
-    if (current) demo = await createDemo({ replacingUserId: current.id }).catch((error: unknown) => {
-      if (error instanceof DemoReplacementGone) return null;
-      throw error;
-    });
+    if (current) {
+      const limited = await rateLimited("demo-replace", 10);
+      if (limited) return limited;
+      demo = await createDemo({ replacingUserId: current.id }).catch((error: unknown) => {
+        if (error instanceof DemoReplacementGone) return null;
+        throw error;
+      });
+    }
     if (!demo) {
       const limited = await rateLimited();
       if (limited) return limited;

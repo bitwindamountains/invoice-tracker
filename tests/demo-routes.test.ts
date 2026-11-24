@@ -2,6 +2,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { readdir, readFile } from "node:fs/promises";
 import { clientAddress } from "@/lib/rate-limit";
 
+const mocks = vi.hoisted(() => ({ takeRateLimit: vi.fn(), createDemo: vi.fn(), findDemoUser: vi.fn() }));
+vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => ({ value: "tok" }) }) }));
+vi.mock("@/lib/demo-session", async (original) => ({ ...(await original<object>()), findDemoUser: mocks.findDemoUser }));
+vi.mock("@/services/demo", async (original) => ({ ...(await original<object>()), createDemo: mocks.createDemo }));
+vi.mock("@/lib/rate-limit", async (original) => ({ ...(await original<object>()), takeRateLimit: mocks.takeRateLimit }));
+
 // Every API write route must be classified for demo mode (spec section 7); a new one fails here until it is.
 const classification: Record<string, "allowed" | "restricted"> = {
   "auth/[action]/route.ts": "restricted",
@@ -70,5 +76,17 @@ describe("demo routes", () => {
     expect(clientAddress(request)).toBe("1.2.3.4");
     stubEnv({ DEMO_MODE: "false", SUPABASE_SECRET_KEY: "sb_secret_xxxxxxxxxxxxxxxxxxxxxxxx" });
     expect(clientAddress(request)).toBe("6.6.6.6");
+  });
+
+  it("rate-limits Start over under its own scope and answers 429 with Retry-After", async () => {
+    stubEnv({ DEMO_MODE: "true", NEXT_PUBLIC_SUPABASE_URL: undefined, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: undefined });
+    mocks.findDemoUser.mockResolvedValue({ id: "u1" });
+    mocks.takeRateLimit.mockResolvedValue({ allowed: false, retryAfter: 3600 });
+    const { POST } = await import("@/app/api/demo/route");
+    const response = await POST(new Request("http://127.0.0.1:3000/api/demo", { method: "POST", headers: { origin: "http://127.0.0.1:3000" } }));
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("3600");
+    expect(mocks.takeRateLimit).toHaveBeenCalledWith(expect.anything(), "demo-replace", "", 10, 3600);
+    expect(mocks.createDemo).not.toHaveBeenCalled();
   });
 });

@@ -6,7 +6,7 @@ test.beforeAll(async () => {
   const host = new URL(process.env.DATABASE_URL ?? "postgresql://invalid").hostname;
   if (!["127.0.0.1", "localhost"].includes(host)) throw new Error("The demo e2e resets rate limits: it needs a local DATABASE_URL");
   // Locally every visitor shares one 3-per-hour demo bucket (TRUST_PROXY=false), so clear it.
-  await getDatabase().rateLimit.deleteMany({ where: { key: { startsWith: "app:demo:" } } });
+  await getDatabase().rateLimit.deleteMany({ where: { OR: [{ key: { startsWith: "app:demo:" } }, { key: { startsWith: "app:demo-replace:" } }] } });
 });
 
 test("demo: start, send an invoice, get paid, start over, sign out", async ({ page, context }) => {
