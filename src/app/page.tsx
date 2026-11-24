@@ -33,9 +33,7 @@ export default function Home() {
           </h1>
           <p>A calmer way to follow through. Bring your invoices, client commitments, and payment conversations into one focused workspace.</p>
           {demo ? (
-            <form method="post" action="/api/demo">
-              <DemoCta />
-            </form>
+            <DemoCta />
           ) : (
             <Link className="button primary hero-cta" href="/register">
               Create your workspace <ArrowRight size={18} />
