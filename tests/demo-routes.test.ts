@@ -67,13 +67,15 @@ describe("demo routes", () => {
       expect(kind, file).toBe(["auth/[action]/route.ts", "onboarding/route.ts"].includes(file) ? "restricted" : "allowed");
   });
 
-  it("uses the last forwarded hop in demo mode", () => {
+  it("prefers True-Client-IP, then the last forwarded hop, in demo mode", () => {
     const request = new Request("http://127.0.0.1:3000/api/demo", {
       method: "POST",
       headers: { "x-forwarded-for": "6.6.6.6, 1.2.3.4" },
     });
     stubEnv({ DEMO_MODE: "true", NEXT_PUBLIC_SUPABASE_URL: undefined, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: undefined });
     expect(clientAddress(request)).toBe("1.2.3.4");
+    const behindEdge = new Request(request, { headers: { "x-forwarded-for": "6.6.6.6, 1.2.3.4", "true-client-ip": "5.5.5.5" } });
+    expect(clientAddress(behindEdge)).toBe("5.5.5.5");
     stubEnv({ DEMO_MODE: "false", SUPABASE_SECRET_KEY: "sb_secret_xxxxxxxxxxxxxxxxxxxxxxxx" });
     expect(clientAddress(request)).toBe("6.6.6.6");
   });
