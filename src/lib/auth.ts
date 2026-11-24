@@ -9,10 +9,13 @@ import { sessionCookieOptions, withSessionLifetime } from "./session-cookie";
 
 export async function createSupabase() {
   const environment = getEnvironment();
+  const url = environment.NEXT_PUBLIC_SUPABASE_URL;
+  const key = environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (environment.DEMO_MODE === "true" || !url || !key) throw new Error("Supabase is not available in demo mode");
   const cookieStore = await cookies();
   return createServerClient(
-    environment.NEXT_PUBLIC_SUPABASE_URL,
-    environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    url,
+    key,
     {
       cookieOptions: sessionCookieOptions,
       cookies: {
@@ -34,9 +37,12 @@ export async function createSupabase() {
 // Admin client (secret key) for server-side account creation; it bypasses RLS, so never expose it.
 export function createSupabaseAdmin() {
   const environment = getEnvironment();
+  const url = environment.NEXT_PUBLIC_SUPABASE_URL;
+  const key = environment.SUPABASE_SECRET_KEY;
+  if (environment.DEMO_MODE === "true" || !url || !key) throw new Error("Supabase is not available in demo mode");
   return createClient(
-    environment.NEXT_PUBLIC_SUPABASE_URL,
-    environment.SUPABASE_SECRET_KEY,
+    url,
+    key,
     { auth: { persistSession: false, autoRefreshToken: false } },
   );
 }
