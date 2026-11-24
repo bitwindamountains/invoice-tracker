@@ -32,7 +32,7 @@
     "geist": "^1.7.2",
     "gsap": "^3.15.0",
     "lucide-react": "^1.47.0",
-    "next": "^16.4.0",
+    "next": "^16.4.6",
     "pdf-lib": "^1.17.1",
     "pg": "^8.23.0",
     "react": "^19.3.0",
@@ -48,7 +48,7 @@
     "@types/react-dom": "^19.3.0",
     "embedded-postgres": "^18.4.0-beta.17",
     "eslint": "^9.39.5",
-    "eslint-config-next": "^16.4.0",
+    "eslint-config-next": "^16.4.6",
     "prettier": "^3.9.8",
     "prisma": "^7.10.0",
     "tsx": "^4.23.13",
@@ -61,6 +61,7 @@
     },
     "prisma": {
       "mysql2": "3.24.4"
-    }
+    },
+    "effect": "3.22.5"
   }
 }
