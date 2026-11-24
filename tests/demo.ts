@@ -5,7 +5,7 @@ import { Prisma } from "../src/generated/prisma/client";
 import { DEMO_DELETE_ORDER, deleteDemoWorkspaces } from "../src/services/demo-cleanup";
 import { findDemoUser, hashDemoToken, newDemoToken } from "../src/lib/demo-session";
 import { seedDemoWorkspace } from "../src/services/demo-seed";
-import { createDemo, deleteDemoForUser } from "../src/services/demo";
+import { createDemo, deleteDemoForUser, DemoReplacementGone } from "../src/services/demo";
 
 // Never run against a shared database: these checks create and delete rows.
 const host = new URL(process.env.DATABASE_URL ?? "postgresql://invalid").hostname;
@@ -225,6 +225,17 @@ check("createDemo replaces the visitor's own demo", () =>
     assert.equal(await findDemoUser(old.token), null);
     assert.equal(await db.user.count({ where: { id: replacingUserId } }), 0);
     assert.ok(await findDemoUser(fresh.token));
+  }));
+check("concurrent replacements of one demo: only one is free", () =>
+  withDemoCap(async () => {
+    const old = await createDemo();
+    const replacingUserId = (await ownerOf(old.token))!;
+    const before = await db.workspace.count({ where: demoWorkspaces });
+    const results = await Promise.allSettled([createDemo({ replacingUserId }), createDemo({ replacingUserId })]);
+    assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
+    const rejected = results.find((result) => result.status === "rejected");
+    assert.ok(rejected?.reason instanceof DemoReplacementGone);
+    assert.ok((await db.workspace.count({ where: demoWorkspaces })) <= before + 1);
   }));
 check("deleteDemoForUser removes the visitor's demo", () =>
   withDemoCap(async () => {
