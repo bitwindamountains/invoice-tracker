@@ -2,7 +2,7 @@
 
 ## Deployment checks
 
-The production environment validator requires HTTPS, Resend delivery, a trusted proxy, a unique authentication secret, and an error-monitor endpoint/token. The ingress must replace `Forwarded` and `X-Forwarded-*` headers rather than append untrusted client values. Set `DEPLOYMENT_VERSION` to the immutable release identifier.
+The production environment validator requires HTTPS, Resend delivery, a trusted proxy, required email verification, the Supabase URL, publishable key and secret key, and an error-monitor endpoint/token. The ingress must replace `Forwarded` and `X-Forwarded-*` headers rather than append untrusted client values. Set `DEPLOYMENT_VERSION` to the immutable release identifier.
 
 Apply migrations as a separate release step with a database role allowed to change schema. Run the application with a role limited to the tables and sequences it uses. Check `/api/health/live` for process health and `/api/health/ready` for database readiness. Neither endpoint returns secrets or database details.
 

@@ -1,8 +1,28 @@
-# Implementation status — 2026-10-13
+# Implementation status — 2026-11-25
 
-## Public demo (2026-11-24)
+## Where things stand (2026-11-25)
 
-`DEMO_MODE=true` serves a throwaway "Try the live demo" workspace per visitor with no Supabase or Resend. Startup removes expired demo workspaces (`src/instrumentation.ts`). `render.demo.yaml` and `docs/deployment-render-demo.md` describe the free Render deploy (one Node service plus a free Postgres); the deploy itself is the owner's step after merge. `tests/e2e/demo.spec.ts` covers start, invoice, send, public link, payment, Start over and sign-out; run it locally (not in CI), see the guide.
+`main` is at `1925394` with CI green. PR #2 (Supabase migration plus the pre-deploy review fixes, `0ee4a02`), #3 and #5 (security patches: Next.js 16.4.6, and an `effect` 3.22.5 override for GHSA-7589-6fvf-x4pw), #4 (public demo) and #6 (demo client IP) are squash-merged. The public demo is live; the real app has not been deployed yet.
+
+**Before the first real deploy:**
+
+- Set production env: `SUPABASE_SECRET_KEY`, `EMAIL_MODE=resend` with `RESEND_API_KEY` and a verified `EMAIL_FROM`, an https `APP_URL`, `REQUIRE_EMAIL_VERIFICATION=true`, `TRUST_PROXY=true`, `ERROR_MONITOR_URL`/`ERROR_MONITOR_TOKEN`. The env validator refuses to start production without them. Also set `DEPLOYMENT_VERSION` to the release id.
+- Host near Supabase's `ap-northeast-2` (Seoul); each database round trip from far away costs ~150 ms.
+- Turn on leaked-password protection in Supabase Auth (project-wide; ask before changing it).
+- Optional: delete the leftover test user `browser-5cd70c29-a1d4-4d33-bc14-b084b00b3e75@example.test` from `invoicetracker."User"`.
+
+**After the first deploy:** check `/api/health/ready`, sign up, and send a password-reset email through Resend.
+
+**Accepted:** Supabase Auth is shared with rentflow (free tier allows two projects), so one login works in both apps and the secret key is project-wide.
+
+## Public demo (2026-11-24, live 2026-11-25)
+
+`DEMO_MODE=true` serves a throwaway "Try the live demo" workspace per visitor with no Supabase or Resend: seeded "Lumen & Line Studio" data, a hashed `demo_session` cookie, 24-hour expiry, at most `DEMO_MAX_ACTIVE` (10) live demos with the oldest evicted, and limits of 3 starts and 10 Start overs per hour per visitor. Startup removes expired demo workspaces (`src/instrumentation.ts`). `tests/e2e/demo.spec.ts` covers start, invoice, send, public link, payment, Start over and sign-out; run it locally (not in CI), see `docs/deployment-render-demo.md`.
+
+- **Live:** https://invoice-tracker-demo.onrender.com, Render web service `invoice-tracker-demo` (free, Singapore), auto-deploys from `main`. Checked live: health ready, seeded workspace, Start over, sign-out, and per-visitor rate-limit keys.
+- **Database:** Render allows one free Postgres per workspace and `rentflow-demo-db` already uses it, so the demo runs in a separate `invoice_tracker_demo` database inside that instance (rentflow's own database untouched). It shares 1 GB and the instance's expiry, **2026-12-23**: recreate both then.
+- **Client IP:** Render's `X-Forwarded-For` ends in proxy hops, so demo mode keys rate limits on `True-Client-IP` from Render's Cloudflare edge (verified live: matches the visitor, spoofed values overwritten).
+- **Open:** `/favicon.ico` returns 404 (harmless).
 
 ## 2026-10-13: Supabase database and Supabase Auth
 
@@ -13,7 +33,7 @@
 - **Fixes:** same-origin checks compare against `APP_URL` (Next reports `localhost` in development even when the browser uses `127.0.0.1`); the local embedded Postgres data moved to `~/.invoice-tracker/postgres` so database writes no longer trigger dev-server reloads.
 - **Configuration:** `BETTER_AUTH_SECRET`/`BETTER_AUTH_URL` are replaced by `APP_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY` and `REQUIRE_EMAIL_VERIFICATION`. CI expects the secret key as a GitHub secret and the URL and publishable key as repository variables.
 
-**Open:** add `<APP_URL>/auth/callback` to the Supabase project's redirect URLs before turning verification on; Supabase's built-in email sender only reaches organization members, so real sign-ups need custom SMTP (a project-wide setting shared with other apps); configure the CI secret and variables.
+The earlier open items are resolved: the app's own `token_hash` emails need neither Supabase redirect URLs nor custom Supabase SMTP, and the CI secret and variables are set.
 
 ## Completed phases
 
@@ -40,13 +60,13 @@ The Phase 10 routes record and update expenses, manage categories and export rec
 
 ## Validation evidence
 
-- 30 unit checks cover validation, invoice calculations, deterministic PDFs, reminder behavior, expense decimals and report date ranges.
-- 131 PostgreSQL/HTTP integration checks cover the prior controls plus health probes, hardened response headers, persisted public-route throttling, manifest installability and service-worker exclusions.
+- 44 unit checks cover validation, invoice calculations, deterministic PDFs, reminder behavior, expense decimals, report date ranges, the deployment environment and demo-mode routes; `npm run test:demo` adds 16 demo database checks (local database only).
+- PostgreSQL/HTTP integration checks cover the prior controls plus Supabase sessions (cookie flags and lifetime, local sign-out, cross-device reset links, stale-email release), health probes, hardened response headers, persisted public-route throttling, manifest installability and service-worker exclusions.
 - The browser journeys cover registration through payment completion, all working financial modules, manifest registration and a real browser-offline navigation fallback.
 - Public responsive and automated accessibility checks remain part of the browser suite.
 - Strict TypeScript, lint, production build, Prisma migration state and dependency audit are release checks.
 - The local production bundle handled 100 smoke requests at concurrency 10 with zero failures and 171 ms p95 on the tested machine.
-- Remote CI has not run.
+- GitHub Actions CI (lint, typecheck, unit, integration and browser suites against a local Postgres service) passes on `main`.
 
 ## Limits and next phase
 
