@@ -5,4 +5,4 @@ src/generated
 package-lock.json
 prisma
 test-results
-invoice_payment_tracker_*.md
+docs/dev-notes/specs/*.md

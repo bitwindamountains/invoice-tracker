@@ -1,6 +1,6 @@
 # Foundation API
 
-`/api/auth/*` is handled by Better Auth. Supported client flows use its typed React client: signup, login, verification/resend, reset request, reset password, session lookup and logout. Passwords must contain 12–128 characters. Signup names are trimmed and constrained to 2–100 characters on the server. Email validation, token expiration, credential hashing, and origin/CSRF checks are framework-managed.
+`POST /api/auth/[action]` is a server route over Supabase Auth with the actions `sign-up`, `sign-in`, `sign-out`, `resend-verification`, `forgot-password` and `reset-password`; email links return through `/auth/callback`. Requests from another origin are rejected, and each action is rate-limited per client. New passwords must contain 12–128 characters. Signup names are trimmed and constrained to 2–100 characters, and emails are lowercased, on the server. Credential hashing and token expiry are handled by Supabase Auth.
 
 `GET /api/workspaces/:workspaceId` requires a verified session cookie and an active database membership. Returns `{ id, name, role }` for the requested workspace; no owner email or auth records are exposed. Anonymous/unverified: 401. Invalid parameters: 400. Missing/nonmember: 404. Unexpected failure: 500 with a request ID, without internal error details. Responses use `private, no-store` and `X-Request-Id`.
 

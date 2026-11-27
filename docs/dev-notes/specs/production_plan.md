@@ -1,6 +1,6 @@
 # Invoice + Payment Tracker SaaS — Full Production Build Plan
 
-> Implementation started 2026-09-20. See [specification review](docs/specification-review.md) for reconciled decisions and [implementation status](docs/implementation-status.md) for tested progress. This specification describes the target product; it is not a production-readiness certification.
+> Implementation started 2026-09-20. See [specification review](../specification-review.md) for reconciled decisions and [implementation status](../../implementation-status.md) for tested progress. This specification describes the target product; it is not a production-readiness certification.
 
 ## 0. Purpose of This Document
 

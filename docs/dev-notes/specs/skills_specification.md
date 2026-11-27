@@ -1,6 +1,6 @@
 # Invoice + Payment Collection SaaS — Skills Specification
 
-> Engineering clarification: [specification review](docs/specification-review.md) records required concurrency, idempotency, currency rounding, immutable history, and tenant-isolation acceptance checks. See [implementation status](docs/implementation-status.md) for verified capabilities.
+> Engineering clarification: [specification review](../specification-review.md) records required concurrency, idempotency, currency rounding, immutable history, and tenant-isolation acceptance checks. See [implementation status](../../implementation-status.md) for verified capabilities.
 
 ## 1. Purpose
 

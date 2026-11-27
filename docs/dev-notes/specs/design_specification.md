@@ -1,6 +1,6 @@
 # Invoice + Payment Collection SaaS — Design Specification
 
-> Implementation clarification: see [specification review](docs/specification-review.md). Viewed/link-opened and Overdue are activity/due-date indicators displayed alongside the financial lifecycle, not mutually exclusive stored states. Only expose navigation and actions for implemented features.
+> Implementation clarification: see [specification review](../specification-review.md). Viewed/link-opened and Overdue are activity/due-date indicators displayed alongside the financial lifecycle, not mutually exclusive stored states. Only expose navigation and actions for implemented features.
 
 ## 1. Design Goal
 

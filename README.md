@@ -1,44 +1,105 @@
 # Invoice Tracker
 
-A collection-first SaaS for freelancers and small service businesses. Development has completed the local acceptance scope through **Phase 8: Payment Intelligence Dashboard**. This is not yet a complete invoicing product or a public production deployment.
+[![CI](https://github.com/bitwindamountains/invoice-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/bitwindamountains/invoice-tracker/actions/workflows/ci.yml)
 
-Implemented: the account and business foundation, clients, catalog, decimal-safe invoice drafts, immutable issue snapshots, deterministic PDF attachments, local/Resend delivery, secure public invoice links, append-only payment history, partial/paid transitions, client payment confirmations and promises, owner review, PDF receipts, reconciled payment dashboards, needs-attention queues, and factual client payment metrics. Mutations are role checked, tenant scoped, audited, and protected against stale or concurrent writes. See [financial rules](docs/financial-rules.md), [review decisions](docs/specification-review.md), and [implementation status](docs/implementation-status.md).
+Collection-first invoicing for freelancers and small service businesses: issue invoices, share a secure link with each client, and track partial payments and payment promises until every invoice is paid.
 
-## Local setup
+**[Try the live demo →](https://invoice-tracker-demo.onrender.com)** Click **Try the live demo** for your own seeded workspace. No sign-up needed. It runs on free hosting, so the first load can take about a minute.
 
-Use Node.js 22.12+ (Node 24 recommended) and npm. On Windows PowerShell, use `npm.cmd` / `npx.cmd` if script execution policy blocks `npm` / `npx`.
+![Dashboard: outstanding, overdue and due-soon totals, and the invoices that need a next step](docs/images/dashboard.webp)
+
+> **Status:** the core product is complete and tested in CI, and the public demo is live. The real app is not deployed for paying users yet.
+
+## Walkthrough
+
+**1. Draft an invoice.** Pick a client, add line items and dates. The server checks the totals and assigns the invoice number when the draft is saved.
+
+![New invoice form with client, line items and dates](docs/images/new-invoice.webp)
+
+**2. Issue and share it.** Issuing freezes the invoice. The PDF, the public link and the timeline all come from that one snapshot.
+
+![Issued invoice with its status timeline, balance and share link](docs/images/invoice-detail.webp)
+
+**3. The client opens the secure link.** They see the invoice exactly as it was issued, with the balance due and a PDF download.
+
+![Client view of the invoice from the secure link](docs/images/client-invoice.webp)
+
+**4. The client reports a payment or promises a date.** A part payment by bank transfer, with its reference and date, stays pending until the freelancer reviews it. The client can then promise a date for the rest.
+
+<p>
+  <img src="docs/images/client-report-payment.webp" width="240" alt="Client reporting a part payment by bank transfer">
+  &nbsp;
+  <img src="docs/images/client-promise.webp" width="240" alt="Client choosing a date to pay the remaining balance">
+</p>
+
+**5. Confirm payments.** Reported payments wait here. Balances change only after the freelancer confirms them.
+
+![Payments waiting for confirmation](docs/images/payments.webp)
+
+**6. Chase what is late.** **Get Paid** lists every invoice that needs a next step, with days overdue, partial payments and promises to check.
+
+![Get Paid queue with overdue invoices and promises](docs/images/get-paid.webp)
+
+**7. Read the numbers.** Revenue from confirmed payments, costs by category, outstanding balances and revenue by client, each exportable as CSV.
+
+![Reports: revenue, expenses, outstanding balances and revenue by client](docs/images/reports.webp)
+
+## Features
+
+- **Business setup** in four steps: business details, branding, invoice defaults and payment methods (bank transfer, GCash or any method)
+- **Clients and catalog** of products and services, with archive instead of delete
+- **Invoices** with discounts, tax, multiple currencies and automatic numbering; PDF attachments and PDF receipts
+- **Secure client links** where clients view the invoice, report payments and promise dates
+- **Payments:** partial payments, owner review of client-reported payments, append-only history
+- **Follow-ups:** a reminder sequence with a tone and message for each stage
+- **Dashboard, Get Paid queue and reports,** including expenses and CSV export
+- **Team roles:** owner and admin can change records; staff can read
+- **Installable PWA**, command palette, responsive layouts, accessible forms and reduced-motion support
+
+## Engineering highlights
+
+- **Money is exact:** amounts travel as decimal strings and are stored as PostgreSQL decimals; floating-point values are rejected. Rounding follows written [financial rules](docs/financial-rules.md), and totals in different currencies are never combined.
+- **Issued invoices never change:** issuing stores the business, client, lines, totals and payment instructions as an immutable snapshot, so a PDF can never disagree with the record.
+- **Payments can't overshoot:** confirming a payment locks the invoice row in a serializable transaction and rejects any amount above the remaining balance. Payment history is append-only.
+- **Invoice numbers are safe under concurrency:** numbers are allocated inside the invoice transaction, a failed save doesn't use one up, and a unique constraint is the final guard.
+- **Tenant isolation:** every read and write includes the workspace, edits are role-checked and audited, and stale edits are rejected by version checks.
+- **Tested in CI:** 44 unit tests, 136 integration checks against PostgreSQL and real HTTP routes, 16 demo-isolation checks, and Playwright browser tests with automated accessibility checks.
+
+## Tech stack
+
+| Part | Technology |
+| --- | --- |
+| App | Next.js 16 (App Router), React 19, TypeScript (strict), Zod |
+| Data | PostgreSQL (Supabase in production), Prisma 7 with the pg driver adapter |
+| Auth | Supabase Auth through `@supabase/ssr`, server-side only |
+| Documents and email | pdf-lib for PDFs, Resend for email |
+| Quality | Vitest, Playwright, ESLint, GitHub Actions |
+
+## Run it locally
+
+Requires Node.js 22.12+ (Node 24 recommended) and npm. Docker isn't needed.
 
 ```sh
 npm ci
-npm run setup:local
+npm run setup:local      # creates random local credentials in an ignored .env (never overwrites one)
 npm run db:generate
-npm run db:local
+npm run db:local         # embedded PostgreSQL; leave this terminal running
 ```
 
-Leave the database terminal running. In another terminal:
+In another terminal:
 
 ```sh
 npm run db:migrate
 npm run dev
 ```
 
-Open **http://127.0.0.1:3000** (it matches `APP_URL`). The app and local PostgreSQL bind to loopback only. The local helper downloads PostgreSQL through a development-only npm dependency; Docker is not required. Its data persists in `~/.invoice-tracker/postgres`, outside the project so database writes don't trigger dev-server reloads. Stop it with Ctrl+C.
+Open **http://127.0.0.1:3000**. The app and the local database bind to this computer only. The database's data lives in `~/.invoice-tracker/postgres`, outside the project, so database writes don't trigger dev-server reloads. To use your own PostgreSQL instead, set `DATABASE_URL` and skip `db:local`.
 
-`setup:local` creates random local credentials in an ignored `.env` and never overwrites an existing file. If you prefer your own PostgreSQL instance, configure `DATABASE_URL` and skip `db:local`.
+### Accounts
 
-## Accounts (Supabase Auth)
+Sign-up, sign-in, email verification and password reset use Supabase Auth. Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and the server-only `SUPABASE_SECRET_KEY`. The app sends verification and reset emails itself, with links back to `APP_URL/auth/callback`.
 
-Sign-up, sign-in, email verification and password reset use Supabase Auth. Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and the server-only `SUPABASE_SECRET_KEY` to your project's values. The app sends the verification and reset emails itself through `EMAIL_MODE`, with links to `APP_URL/auth/callback` built from the admin API, so they work on any device and don't depend on the Supabase project's shared email templates. The app mirrors each verified user into its own `User` table, which workspaces reference. Session cookies last seven days and are renewed while the user is active.
-
-For development you can skip email verification with `REQUIRE_EMAIL_VERIFICATION=false`: sign-up then creates an already-confirmed account and signs it in. Production refuses this setting. The integration and browser tests require it, and delete the Supabase accounts they create; CI reads the key from the `SUPABASE_SECRET_KEY` secret and the URL and publishable key from repository variables.
-
-Invoice and reminder emails are still sent by the app. With `EMAIL_MODE=file` they are written to **`.local/mail/*.json`** instead of being delivered.
-
-No demo users or financial seed records are created. Automated tests create unique disposable accounts and remove those accounts after execution.
-
-## Public demo
-
-A throwaway "Try the live demo" mode (`DEMO_MODE=true`) gives each visitor a seeded workspace with no sign-up, Supabase or email provider. Live demo: _link to be added after the first Render deploy_. Deploy and local-run steps are in [docs/deployment-render-demo.md](docs/deployment-render-demo.md); the blueprint is `render.demo.yaml`.
+For development you can skip email verification with `REQUIRE_EMAIL_VERIFICATION=false`; production refuses this setting. With `EMAIL_MODE=file`, invoice and reminder emails are written to `.local/mail/*.json` instead of being sent.
 
 ## Checks
 
@@ -55,29 +116,29 @@ npm run build
 npm audit
 ```
 
-The integration suite exercises real HTTP routes and PostgreSQL. Browser tests cover the account, onboarding, business settings, and client-management journey, responsive public layouts, mobile client cards, and automated accessibility checks. `.github/workflows/ci.yml` runs these checks against a PostgreSQL service.
+[CI](.github/workflows/ci.yml) runs these against a PostgreSQL service. The integration and browser tests create disposable Supabase accounts and delete them afterwards.
 
-## Production configuration
+## Production
 
-Use managed PostgreSQL, set `APP_URL` to the exact HTTPS origin (and add its `/auth/callback` to Supabase's redirect URLs), set the Supabase URL and publishable key, and configure `EMAIL_MODE=resend`, `RESEND_API_KEY`, and a verified sender in `EMAIL_FROM`. Production deliberately refuses file-mode email or an HTTP auth origin.
+Use managed PostgreSQL. Set `APP_URL` to the exact HTTPS origin, configure `EMAIL_MODE=resend` with `RESEND_API_KEY` and a verified sender in `EMAIL_FROM`. Production refuses file-mode email and an HTTP auth origin.
 
-Run migrations as a separate release step with `npm run db:migrate`; then `npm run build` and `npm start`. `npm start` binds loopback for a local reverse proxy. Container hosts may use `npx next start --hostname 0.0.0.0` behind their HTTPS ingress. Do not expose the development server or embedded database publicly.
-
-Before launch, complete the original production plan's launch checklist and the remaining gates in [security](docs/security.md). A successful production build is not equivalent to production readiness.
+Run migrations as a separate release step (`npm run db:migrate`), then `npm run build` and `npm start`. Before launch, complete the remaining gates in [security](docs/security.md). The public demo's setup is in [docs/deployment-render-demo.md](docs/deployment-render-demo.md).
 
 ## Project map
 
-- `src/app`: Next.js pages and route handlers
-- `src/components`: app shell (navigation, command palette), toasts, status chips, money formatting and shared account UI
-- `src/app/system.css`: design tokens, motion and component styles layered over `globals.css`
+- `src/app`: pages and route handlers
+- `src/features`: onboarding, clients, catalog, invoices and other feature modules (validation, forms, UI)
+- `src/services`: workspace authorization and transactional persistence
 - `src/lib`: auth, environment, database, email, session, logging
-- `src/features/onboarding`: business setup schema, loader, types, and wizard UI
-- `src/features/clients`: client validation, form, and archive controls
-- `src/features/catalog`: product/service validation, forms, and status controls
-- `src/features/invoices`: invoice validation, editor, and line-item types
-- `src/services`: workspace authorization and transactional business-profile persistence
-- `prisma`: schema and versioned migration
-- `tests`: environment, integration and browser checks
-- `docs`: review, architecture, API, security and progress
+- `src/components`: app shell, command palette, toasts, shared UI
+- `prisma`: schema and migrations
+- `tests`: unit, integration and browser tests
 
-The four original specifications remain at the repository root with clarification links. Financial modules start only after their phase-specific requirements and tests are in place.
+## Documentation
+
+- [Architecture](docs/architecture.md) and [API](docs/api.md)
+- [Financial rules](docs/financial-rules.md)
+- [Security](docs/security.md) and [operations](docs/operations.md)
+- [Implementation status](docs/implementation-status.md)
+- [Public demo deployment](docs/deployment-render-demo.md)
+- [Development notes](docs/dev-notes/): the original specifications, the specification review and design plans

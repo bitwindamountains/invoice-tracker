@@ -1,6 +1,6 @@
 # Foundation architecture
 
-Next.js App Router provides pages and HTTP endpoints. TypeScript is strict. Better Auth owns credentials, verification/reset tokens, and session cookies; its Prisma adapter persists records in PostgreSQL. Prisma uses the PostgreSQL driver adapter with bounded connection pooling. Server components resolve sessions before reading workspace data.
+Next.js App Router provides pages and HTTP endpoints. TypeScript is strict. Supabase Auth owns credentials and verification/reset tokens; all auth calls run on the server through `@supabase/ssr`, with HttpOnly session cookies. Each verified user is mirrored into the app's own `User` table, which workspaces reference. Prisma uses the PostgreSQL driver adapter with bounded connection pooling. Server components resolve sessions before reading workspace data.
 
 UI → server route/session check → workspace service → Prisma → PostgreSQL. No client-supplied user identity authorizes a read. `/api/workspaces/:workspaceId` first resolves a verified session and then looks up the composite workspace/user membership. Unauthorized and nonexistent workspaces both return 404 to authenticated callers. Role restrictions are explicit service parameters.
 
@@ -34,4 +34,4 @@ Local email uses a file adapter outside the public directory. Production uses a 
 
 The UI uses semantic CSS variables, accessible labels, visible focus, reduced-motion support and responsive layouts. No unused accounting navigation or fabricated financial dashboard is shown. PWA installation and offline behavior belong to phase 11.
 
-Source decisions: [specification review](specification-review.md). API contracts: [api.md](api.md).
+Source decisions: [specification review](dev-notes/specification-review.md). API contracts: [api.md](api.md).

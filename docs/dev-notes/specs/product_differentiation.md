@@ -1,6 +1,6 @@
 # Product Description & Differentiation
 
-> Implementation scope: see [specification review](docs/specification-review.md). Preserve the collection-first positioning; scheduled automation, deposits, milestone billing, and deliverable unlocking follow the core collection MVP. A recorded link opening is evidence of access, not proof that a specific client read the invoice.
+> Implementation scope: see [specification review](../specification-review.md). Preserve the collection-first positioning; scheduled automation, deposits, milestone billing, and deliverable unlocking follow the core collection MVP. A recorded link opening is evidence of access, not proof that a specific client read the invoice.
 ## Invoice + Payment Collection PWA for Freelancers and Small Service Businesses
 
 # 1. Product Summary
